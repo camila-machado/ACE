@@ -1,0 +1,28 @@
+##------------------------------------------------------------------------------
+# CNPEM - Centro Nacional de Pesquisa em Energia e Materiais, Brazil
+# Sirius - Research Group EMA
+#
+# Code project: TC_caculus
+# 
+# Objectif:
+# Automate the use of Quantum Espresso (QE) for the calculus of critical 
+# superconductivity temperature of diferent molecules and cell structures
+# 
+##------------------------------------------------------------------------------
+
+#Instructions in how to use TC_calculus
+
+#->Unpack .tar.gz
+#->Open terminal in unpacked folder 
+#->Open write_config.py and change variables at will
+#->Remember to save the pseudo potential files you need in 'pseudo' folder and #add their names in write_config.py as previous ones
+#->file_name.cif must contain complete directory
+
+#call in terminal:
+
+python3 write_config.py
+python3 program.py directory/file_name.cif
+
+#Enjoy your TC's!!!
+
+
