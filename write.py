@@ -5,20 +5,48 @@ db = pk.load('config.db', False)
 
 #------------------Dicionarios de Dados------------------#
 
-#qe_par - entrada da funcao ase.write
+#qe_pw_par - entrada da funcao ase.write
 db.dcreate ('pw_par')
 
 db.dadd('pw_par',('restart_mode','from_scratch') )
-db.dadd('pw_par',('prefix','H3S') )
 db.dadd('pw_par',('pseudo_dir','./pseudo') )
-db.dadd('pw_par',('out','./out') )
+db.dadd('pw_par',('outdir','./out') )
 db.dadd('pw_par',('occupations','smearing') )
 db.dadd('pw_par',('smearing','methfessel-paxton') )
 db.dadd('pw_par',('degauss',0.03) )
 db.dadd('pw_par',('ecutwfc',10.0) )
 db.dadd('pw_par',('ecutrho',120.0) )
+db.dadd('pw_par',('conv_thr',1e-10) )
 
-#pseudopotenciais
+#qe_ph_par
+db.dcreate ('ph_par')
+
+db.dadd('ph_par',('tr2_ph','1e-12') )
+db.dadd('ph_par',('nq1',3) )
+db.dadd('ph_par',('nq2',3) )
+db.dadd('ph_par',('nq3',3) )
+db.dadd('ph_par',('electron_phonon',"'interpolated'") )
+db.dadd('ph_par',('el_ph_sigma',0.005) )
+db.dadd('ph_par',('el_ph_nsigma',10) )
+
+#qe_q2r_par
+db.dcreate ('q2r_par')
+
+db.dadd('q2r_par',('zasr',"'simple'") )
+db.dadd('q2r_par',('la2F','.true.') )
+
+#qe_matdyn_par
+db.dcreate ('matdyn_par')
+
+db.dadd('matdyn_par',('asr',"'simple'") )
+db.dadd('matdyn_par',('la2F','.true.') )
+db.dadd('matdyn_par',('dos','.true.') )
+db.dadd('matdyn_par',('nk1',3) )
+db.dadd('matdyn_par',('nk2',3) )
+db.dadd('matdyn_par',('nk3',3) )
+db.dadd('matdyn_par',('ndos',50) )
+
+#pseudo potenciais
 db.dcreate ('pseudo')
 
 db.dadd('pseudo',('Ba','Ba.pbe-spn-kjpaw_psl.1.0.0.UPF') )
@@ -39,7 +67,7 @@ db.dcreate ('grids')
 
 db.dadd('grids',('kcoarse_div',(10,10,10)) )
 db.dadd('grids',('kcoarse_off',(0,0,0)) )
-db.dadd('grids',('kdense_div',(10,10,10)) )
+db.dadd('grids',('kdense_div',(18,18,18)) )
 db.dadd('grids',('kdense_off',(0,0,0)) )
 
 #Escrever dados
