@@ -42,12 +42,5 @@ db.dadd('grids',('kcoarse_off',(0,0,0)) )
 db.dadd('grids',('kdense_div',(10,10,10)) )
 db.dadd('grids',('kdense_off',(0,0,0)) )
 
-#estrutura.cif
-db.dcreate ('structure')
-
-###entrada do programa
-db.dadd('structure',('dir','/home/ABTLUS/camila.araujo/Documents/Programa/cif_database/H3S-200GPa.cif') )
-db.dadd('structure',('format','cif') )
-
 #Escrever dados
 db.dump()
