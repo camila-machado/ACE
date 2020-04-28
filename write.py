@@ -4,6 +4,7 @@ import pickledb as pk
 db = pk.load('config.db', False)
 
 #------------------Dicionarios de Dados------------------#
+##------------------------------------------------------------------------------
 
 #qe_pw_par - entrada da funcao ase.write
 db.dcreate ('pw_par')
@@ -12,16 +13,15 @@ db.dadd('pw_par',('restart_mode','from_scratch') )
 db.dadd('pw_par',('pseudo_dir','./pseudo') )
 db.dadd('pw_par',('outdir','./out') )
 db.dadd('pw_par',('occupations','smearing') )
-db.dadd('pw_par',('smearing','methfessel-paxton') )
-db.dadd('pw_par',('degauss',0.03) )
-db.dadd('pw_par',('ecutwfc',10.0) )
-db.dadd('pw_par',('ecutrho',120.0) )
+db.dadd('pw_par',('smearing','marzari-vanderbilt') )
+db.dadd('pw_par',('degauss',0.05) )
 db.dadd('pw_par',('conv_thr',1e-10) )
 
 #qe_ph_par
 db.dcreate ('ph_par')
 
 db.dadd('ph_par',('tr2_ph','1e-12') )
+db.dadd('ph_par',('ldisp','.true.') )
 db.dadd('ph_par',('nq1',3) )
 db.dadd('ph_par',('nq2',3) )
 db.dadd('ph_par',('nq3',3) )
@@ -41,10 +41,16 @@ db.dcreate ('matdyn_par')
 db.dadd('matdyn_par',('asr',"'simple'") )
 db.dadd('matdyn_par',('la2F','.true.') )
 db.dadd('matdyn_par',('dos','.true.') )
-db.dadd('matdyn_par',('nk1',3) )
-db.dadd('matdyn_par',('nk2',3) )
-db.dadd('matdyn_par',('nk3',3) )
+db.dadd('matdyn_par',('nk1',10) )
+db.dadd('matdyn_par',('nk2',10) )
+db.dadd('matdyn_par',('nk3',10) )
 db.dadd('matdyn_par',('ndos',50) )
+
+#qe_lambda_par
+db.dcreate ('lambda_par')
+
+db.dadd('lambda_par',('sigma_omega', 0.12 ) )
+db.dadd('lambda_par',('mu',0.16) )
 
 #pseudo potenciais
 db.dcreate ('pseudo')
@@ -65,7 +71,7 @@ db.dadd('pseudo',('Y' ,'Y.pbe-spn-kjpaw_psl.1.0.0.UPF') )
 #grids
 db.dcreate ('grids')
 
-db.dadd('grids',('kcoarse_div',(10,10,10)) )
+db.dadd('grids',('kcoarse_div',(9,9,9)) )
 db.dadd('grids',('kcoarse_off',(0,0,0)) )
 db.dadd('grids',('kdense_div',(18,18,18)) )
 db.dadd('grids',('kdense_off',(0,0,0)) )
