@@ -6,11 +6,10 @@ db = pk.load('config.db', False)
 #------------------Dicionarios de Dados------------------#
 ##------------------------------------------------------------------------------
 
+#opcional: caso os programas do quantum-espresso não estejam no $PATH 
 #dir - 
 db.dcreate ('dir')
-
-db.dadd('dir',('qe_programs','/home/ABTLUS/camila.araujo/Downloads/Programs/qe-6.5/bin/') )
-db.dadd('dir',('input','/home/ABTLUS/camila.araujo/Documents/Programa/') )
+db.dadd('dir',('qe_programs','') )
 
 #mpi - 
 db.dcreate ('mpi')
@@ -22,8 +21,6 @@ db.dadd('mpi',('nk',4) )
 db.dcreate ('pw_par')
 
 db.dadd('pw_par',('restart_mode','from_scratch') )
-db.dadd('pw_par',('pseudo_dir','./pseudo') )
-db.dadd('pw_par',('outdir','./out') )
 db.dadd('pw_par',('occupations','smearing') )
 db.dadd('pw_par',('smearing','marzari-vanderbilt') )
 db.dadd('pw_par',('degauss',0.05) )
@@ -40,7 +37,6 @@ db.dadd('grids',('kdense_off',(0,0,0)) )
 #qe_ph_par
 db.dcreate ('ph_par')
 
-db.dadd('ph_par',('outdir','./out') )
 db.dadd('ph_par',('tr2_ph','1e-12') )
 db.dadd('ph_par',('ldisp','.true.') )
 db.dadd('ph_par',('nq1',3) )

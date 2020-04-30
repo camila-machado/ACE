@@ -11,6 +11,8 @@
 # 
 ##------------------------------------------------------------------------------
 
+#!/usr/bin/env python
+
 #MODULES
 
 import numpy as np
@@ -21,6 +23,9 @@ import sys
 
 import subprocess
 import os
+import shutil
+
+from pathlib import PurePath
 
 #DEFINES
 
@@ -28,7 +33,7 @@ _DATABASE = 'config.db'
 
 #FUNCTIONS
 
-def treat_input_data(data):
+def get_input_data(data):
 
     # Read the input from user and save the correspondent file information 
     # (file directory, file format, and prefix) in the database
@@ -37,19 +42,63 @@ def treat_input_data(data):
     #  @return: no return. the function modify the database directly
 
     #get input information
-    file_dir = data.strip()
+    file_dir = os.path.normpath(data)
+    path = PurePath(file_dir)
+       
+    prefix = path.stem
+    file_format = path.suffix.strip('.')
 
-    file_name = file_dir.rsplit('/',1)[1]
+    input_info = {
+    'prefix': prefix,
+    'file_dir':file_dir,
+    'file_format':file_format
+    }
 
-    prefix = file_name.rsplit('.',1)[0]
+    return input_info
+##----------------------------------------------------------------------------##
+def mk_work_enviroment(input_info):
 
-    if (file_name.endswith('cif')):
-        file_format = 'cif'
+    # 
+    #  
+    #  @param:  
+    #  @return: 
+
+    prefix = input_info.get('prefix')
+
+    old_path = os.getcwd()
+    print(old_path)
+
+    new_path = os.path.join(old_path, prefix, 'calc_dir')
+    print(new_path)
+
+    exist = os.path.exists(new_path)
+    if exist == True:
+        shutil.rmtree(new_path)
+
+    os.makedirs(new_path)
+    os.chdir(new_path)
+
+    return
+##----------------------------------------------------------------------------##
+def mk_data_base(input_info):
+    
+    # Construct the files structure to be used in 'write_espresso_in' function
+    #
+    #  
+    #  @param:  
+    #  @return:
+
+    prefix = input_info.get('prefix')
+    file_dir = input_info.get('file_dir')
+    file_format = input_info.get('file_format')
+    
+    os.system('python3 ../../write.py')
 
     #create prefix dependent parameters
     #ph
     fildyn = prefix + '.dyn'
     fildvscf = prefix + '.dv'
+    outdir = './out'
 
     #q2r
     flfrc = prefix + '.frc'
@@ -58,18 +107,21 @@ def treat_input_data(data):
     flfrq= prefix+'.freq'    
     fldos= prefix+'.phonon.dos'
 
-    #save data obtaind in database
+    #Programs' parameters
     db = pk.load(_DATABASE, False)
 
     db.dcreate ('cell_structure')
-
     db.dadd('cell_structure',('dir',file_dir) )
     db.dadd('cell_structure',('format',file_format) )
+
     db.dadd('pw_par',('prefix',prefix) )
+    db.dadd('pw_par',('outdir',outdir) )
+    db.dadd('pw_par',('pseudo_dir','../../pseudo') )
 
     db.dadd('ph_par',('prefix',prefix) )
     db.dadd('ph_par',('fildyn',fildyn) )
     db.dadd('ph_par',('fildvscf',fildvscf) )
+    db.dadd('ph_par',('outdir',outdir) )
 
     db.dadd('q2r_par',('flfrc',flfrc) )
     db.dadd('q2r_par',('fildyn',fildyn) )
@@ -78,7 +130,29 @@ def treat_input_data(data):
     db.dadd('matdyn_par',('flfrq',flfrq) )
     db.dadd('matdyn_par',('fldos',fldos) )
 
+    #Files' strutures
+    db.dcreate ('file_order')
+    db.dadd('file_order',('pw',[
+            'prefix','restart_mode','pseudo_dir','outdir','occupations',
+            'smearing','degauss','ecutwfc','ecutrho','conv_thr']))
+    db.dadd('file_order',('ph',[
+            'prefix', 'outdir', 'tr2_ph', 'fildyn','ldisp', 'nq1',
+            'nq2', 'nq3', 'electron_phonon','fildvscf', 'el_ph_sigma', 
+            'el_ph_nsigma']))
+    db.dadd('file_order',('q2r',[
+            'zasr', 'fildyn', 'flfrc', 'la2F']))
+    db.dadd('file_order',('matdyn',[
+            'asr', 'flfrc', 'flfrq', 'la2F', 'dos', 'fldos', 'nk1',
+            'nk2','nk3','ndos']))
+
+    #Programs' input files section names
+    db.dcreate ('section_name')
+    db.dadd('section_name',('ph','inputph'))
+    db.dadd('section_name',('q2r','input'))
+    db.dadd('section_name',('matdyn','input'))
+
     db.dump()
+
     return
 ##----------------------------------------------------------------------------##
 
@@ -267,7 +341,7 @@ def set_ecut (pseudo):
 
     pseudo_content =[]
     for directory in pseudo_dir:
-        file_name = 'pseudo/' + directory
+        file_name = '../../pseudo/' + directory
         file_content = get_file(file_name)
         pseudo_content.append(file_content)
     
@@ -298,6 +372,7 @@ def save_file_name (program, name):
 #  
 ##------------------------------------------------------------------------------
     db = pk.load(_DATABASE, False)
+
     db.dadd('dir',(program, name))
 
     db.dump()
@@ -370,40 +445,6 @@ def write_espresso_in_pw (scf1):
     return
 ##----------------------------------------------------------------------------##
 
-def set_file_structure():
-
-    # Construct the files structure to be used in 'write_espresso_in' function
-    
-    db = pk.load(_DATABASE,False)
-
-    #Files struture
-    db.dcreate ('file_order')
-
-    db.dadd('file_order',('pw',[
-            'prefix','restart_mode','pseudo_dir','outdir','occupations',
-            'smearing','degauss','ecutwfc','ecutrho','conv_thr']))
-    db.dadd('file_order',('ph',[
-            'prefix', 'outdir', 'tr2_ph', 'fildyn','ldisp', 'nq1',
-            'nq2', 'nq3', 'electron_phonon','fildvscf', 'el_ph_sigma', 
-            'el_ph_nsigma']))
-    db.dadd('file_order',('q2r',[
-            'zasr', 'fildyn', 'flfrc', 'la2F']))
-    db.dadd('file_order',('matdyn',[
-            'asr', 'flfrc', 'flfrq', 'la2F', 'dos', 'fldos', 'nk1',
-            'nk2','nk3','ndos']))
-
-    #Files sectios names
-    db.dcreate ('section_name')
-
-    db.dadd('section_name',('ph','inputph'))
-    db.dadd('section_name',('q2r','input'))
-    db.dadd('section_name',('matdyn','input'))
-
-    db.dump()
-
-    return 
-##----------------------------------------------------------------------------##
-
 def write_espresso_in(program):
 
     # Write espresso_in file accordinly with the program
@@ -456,7 +497,6 @@ def run_espresso_in(program):
     db = pk.load(_DATABASE, False)
 
     dir_qe = str(db.dget('dir','qe_programs'))    
-    dir_input = str(db.dget('dir','input'))
     file_name = str(db.dget('dir', program))
     prefix = (db.dget('pw_par', 'prefix'))
     np = str(db.dget('mpi','np'))  
@@ -465,7 +505,6 @@ def run_espresso_in(program):
     db.dump()    
 
     #set variables
-    dir_file = dir_input + file_name
     output_name = prefix + '.' + program + '.out'
     
     if program.find('scf') > -1:
@@ -475,13 +514,13 @@ def run_espresso_in(program):
 
     #make command str
     if program.find('lambda' or 'q2r') > -1:
-        command = dir_program +' < ' + dir_file + ' > ' + output_name
+        command = dir_program +' < ' + file_name + ' > ' + output_name
     elif program.find('matdyn') > -1:
-        command = ('mpiexec' + ' -np ' + np + ' ' + dir_program + ' -in ' + dir_file 
+        command = ('mpiexec' + ' -np ' + np + ' ' + dir_program + ' -in ' + file_name 
                    + ' > ' + output_name)
     else:
         command = ('mpiexec' + ' -np ' + np + ' ' + dir_program + ' -nk ' + nk + ' -in ' 
-                  + dir_file + ' > ' + output_name)
+                  + file_name + ' > ' + output_name)
 
     print (command)
 
@@ -610,13 +649,14 @@ def write_espresso_in_lambda():
 ##----------------------------------------------------------------------------##
 ################################################################################
 
-#treat input data
+#treat input data and prepaire 
 user_input = sys.argv[1]
-treat_input_data(data = user_input)
+
+input_info = get_input_data(data = user_input)
+mk_work_enviroment(input_info = input_info)
+mk_data_base(input_info = input_info)
 
 #write input files
-set_file_structure()
-
 write_espresso_in_pw(scf1 = True)
 write_espresso_in_pw(scf1= False)
 write_espresso_in(program = 'ph')
