@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 ##------------------------------------------------------------------------------
 # CNPEM - National Brazilian Center for Research in Energy and Materials
 # Sirius - Research Group EMA
@@ -11,8 +13,6 @@
 # 
 ##------------------------------------------------------------------------------
 
-#!/usr/bin/env python
-
 #MODULES
 
 import numpy as np
@@ -20,16 +20,13 @@ import ase
 import ase.io
 import pickledb as pk
 import sys
+import time
 
 import subprocess
 import os
 import shutil
 
 from pathlib import PurePath
-
-#DEFINES
-
-_DATABASE = 'config.db'
 
 #FUNCTIONS
 
@@ -43,10 +40,13 @@ def get_input_data(data):
 
     #get input information
     file_dir = os.path.normpath(data)
+    assert os.path.isfile(file_dir), 'Entrance must be a file directory'    
     path = PurePath(file_dir)
        
     prefix = path.stem
     file_format = path.suffix.strip('.')
+
+    assert file_format == 'cif', 'Entrance file must be .cif type'
 
     input_info = {
     'prefix': prefix,
@@ -56,7 +56,7 @@ def get_input_data(data):
 
     return input_info
 ##----------------------------------------------------------------------------##
-def mk_work_enviroment(input_info):
+def mk_work_environment(input_info):
 
     # 
     #  
@@ -66,69 +66,126 @@ def mk_work_enviroment(input_info):
     prefix = input_info.get('prefix')
 
     old_path = os.getcwd()
-    print(old_path)
+    new_path = os.path.join(old_path, prefix)
 
-    new_path = os.path.join(old_path, prefix, 'calc_dir')
-    print(new_path)
-
+    #@ trecho a ser mudado -> "continuar de onde parou"
     exist = os.path.exists(new_path)
     if exist == True:
         shutil.rmtree(new_path)
 
-    os.makedirs(new_path)
+    dir_names = ['calc_dir', 'out_dir', 'input_dir']
+    dir_info = {}
+    for name in dir_names:
+        path = os.path.join(new_path, name)
+        dir_info.update({name:path})
+        os.makedirs(path)
+    dir_info.update({'work_dir':new_path})
+
     os.chdir(new_path)
 
-    return
+    return dir_info
 ##----------------------------------------------------------------------------##
-def mk_data_base(input_info):
+
+def mk_data_base(input_info, dir_info):
     
-    # Construct the files structure to be used in 'write_espresso_in' function
+    # Order of the 'set' functions matters
     #
-    #  
     #  @param:  
     #  @return:
 
-    prefix = input_info.get('prefix')
+    prefix =  input_info.get('prefix')
+
+    database = prefix + '_config.db'
+
+    #Construct database
+    try:
+        subprocess.run(['write.py', database])
+    except OSError as err:
+        print("Execution failed:", err, file=sys.stderr)
+        raise
+    else:
+        print('Database created')
+    
+    set_cell_structure(input_info = input_info, database = database)
+
+    set_fixed_values(prefix = prefix, 
+                     dir_info = dir_info, database = database)
+
+    try:
+        set_pseudo_potencials(database = database)
+    except KeyError as err:
+        print('Pseudopotentials failed:', err, file=sys.stderr)
+        raise
+    else:
+        print('Check: Pseudopotentials found')
+
+    set_program_parameters(prefix = prefix, database = database)
+
+    return database
+##----------------------------------------------------------------------------##
+def set_cell_structure(input_info, database):
+
     file_dir = input_info.get('file_dir')
     file_format = input_info.get('file_format')
+
+    current_path = os.getcwd()
+
+    # adding exception handling
+    try:
+        file_path = shutil.copy(file_dir, current_path)
+    except IOError as e:
+        print('Unable to copy cell structure file. %s' % e)
+        raise
+    except:
+        print('Unexpected error:', sys.exc_info())
+        raise
     
-    os.system('python3 ../../write.py')
+    print('Check: Cell structure file found')
+    
+    db = pk.load(database, False)
 
-    #create prefix dependent parameters
-    #ph
-    fildyn = prefix + '.dyn'
-    fildvscf = prefix + '.dv'
-    outdir = './out'
-
-    #q2r
-    flfrc = prefix + '.frc'
-
-    #matdyn    
-    flfrq= prefix+'.freq'    
-    fldos= prefix+'.phonon.dos'
-
-    #Programs' parameters
-    db = pk.load(_DATABASE, False)
-
+    #Cell structures information
     db.dcreate ('cell_structure')
-    db.dadd('cell_structure',('dir',file_dir) )
+    db.dadd('cell_structure',('dir',file_path) )
     db.dadd('cell_structure',('format',file_format) )
 
-    db.dadd('pw_par',('prefix',prefix) )
-    db.dadd('pw_par',('outdir',outdir) )
-    db.dadd('pw_par',('pseudo_dir','../../pseudo') )
+    db.dump()
+    
+    return
+##----------------------------------------------------------------------------##
 
-    db.dadd('ph_par',('prefix',prefix) )
-    db.dadd('ph_par',('fildyn',fildyn) )
-    db.dadd('ph_par',('fildvscf',fildvscf) )
-    db.dadd('ph_par',('outdir',outdir) )
+def set_fixed_values(prefix, dir_info, database):
 
-    db.dadd('q2r_par',('flfrc',flfrc) )
-    db.dadd('q2r_par',('fildyn',fildyn) )
+    calc_dir = dir_info.get('calc_dir')
+    out_dir = dir_info.get('out_dir')
+    input_dir = dir_info.get('input_dir')
+    work_dir = dir_info.get('work_dir')
 
-    db.dadd('matdyn_par',('flfrc',flfrc) )
-    db.dadd('matdyn_par',('flfrq',flfrq) )
-    db.dadd('matdyn_par',('fldos',fldos) )
+    db = pk.load(database, False)
+
+    #Directories information
+    db.dadd('dir',('calc_dir',calc_dir) )
+    db.dadd('dir',('out_dir',out_dir) )
+    db.dadd('dir',('input_dir',input_dir) )
+    db.dadd('dir',('work_dir',work_dir) )
+    
+    #Input files' names
+    db.dcreate('input_name')
+    db.dadd('input_name',('scf1', prefix + '.scf1.in' ))
+    db.dadd('input_name',('scf2', prefix + '.scf2.in' ))
+    db.dadd('input_name',('ph', prefix + '.ph.in' ))
+    db.dadd('input_name',('q2r', prefix + '.qr2.in' ))
+    db.dadd('input_name',('matdyn', prefix + '.matdyn.in' ))
+    db.dadd('input_name',('lambda', prefix + '.lambda.in' ))
+
+    #Output files' names
+    db.dcreate('output_name')
+    db.dadd('output_name',('scf1', prefix + '.scf1.out' ))
+    db.dadd('output_name',('scf2', prefix + '.scf2.out' ))
+    db.dadd('output_name',('ph', prefix + '.ph.out' ))
+    db.dadd('output_name',('q2r', prefix + '.qr2.out' ))
+    db.dadd('output_name',('matdyn', prefix + '.matdyn.out' ))
+    db.dadd('output_name',('lambda', prefix + '.lambda.out' ))
 
     #Files' strutures
     db.dcreate ('file_order')
@@ -151,64 +208,180 @@ def mk_data_base(input_info):
     db.dadd('section_name',('q2r','input'))
     db.dadd('section_name',('matdyn','input'))
 
+    #Get all pseudo files
+    pseudo_path = db.dget('dir','pseudo_folder')
+    pseudo_files = os.listdir(pseudo_path)
+
+    db.dcreate ('pseudo_dirs')
+    for file_name in pseudo_files:
+        element = file_name.split('.')[0]
+        db.dadd('pseudo_dirs',(element,file_name))
+
     db.dump()
 
     return
+
 ##----------------------------------------------------------------------------##
 
-def get_file (file_dir):
+def set_program_parameters(prefix, database):
 
-    # Open file and save it's content in a list of strings
-    #  
-    #  @param:  - 'file_dir': (str) directory of the file to be read
-    #  @return: - 'content' : (str list) each line of the file is saved as a
-    #                         element of 'content'         
+    db = pk.load(database, False)
 
-    f = open(file_dir, 'r')
-    content = f.readlines()
-    f.close()
+    #CREATE PREFIX DEPENDEND PARAMETERS
+    #pw
 
-    return content
-##----------------------------------------------------------------------------##
+    pseudo_path = db.dget('dir', 'pseudo_folder')
 
-def get_word_position (word, content):
+    try:
+        ecutwfc, ecutrho = set_ecut(database = database)
+    except ValueError as err:
+        print('Ecut failed:', err, file=sys.stderr)
+        raise
+    else:
+        print('Check: Cutoff energies found')
 
-    # Get the str element posiotion of where 'word' was found in the 'content' 
-    # list of strings. Only returns the first occurance.
-    #  
-    #  @param:  - 'word'    : (str) to be searched
-    #           - 'content' : (str list) where 'word' will be searched
-    #  @return: - 'position': (int) index position of the str element that 
-    #                         contains 'word'
-    #
-                    
-    for element in content:
-        if element.find(word.upper() or word.lower()) > -1:
-            position = content.index(element)
-            break
+    #ph
+    fildyn = prefix + '.dyn'
+    fildvscf = prefix + '.dv'
+    outdir = './out'
 
-    return position
-##----------------------------------------------------------------------------##
+    #q2r
+    flfrc = prefix + '.frc'
 
-def write_file (file_dir, content):
+    #matdyn    
+    flfrq= prefix+'.freq'    
+    fldos= prefix+'.phonon.dos'
 
-    # open/create file and rewrite it's content
-    #  
-    #  @param:  - 'file_dir': (str) directory of the file to be oppend/created
-    #           - 'content' : (str list) list of strings that constains 
-    #                         each line of the file to be rewritten
-    #  @return: no return.
-           
-    f = open(file_dir, 'w')
+    #ADD PROGRAMS' PARAMETERS
+    db.dadd('pw_par',('prefix',prefix) )
+    db.dadd('pw_par',('outdir',outdir) )
+    db.dadd('pw_par',('pseudo_dir', pseudo_path) )
+    db.dadd('pw_par',('ecutwfc',ecutwfc) )
+    db.dadd('pw_par',('ecutrho',ecutrho) )
 
-    for line in content:
-        f.write(line)
+    db.dadd('ph_par',('prefix',prefix) )
+    db.dadd('ph_par',('fildyn',fildyn) )
+    db.dadd('ph_par',('fildvscf',fildvscf) )
+    db.dadd('ph_par',('outdir',outdir) )
 
-    f.close()
+    db.dadd('q2r_par',('flfrc',flfrc) )
+    db.dadd('q2r_par',('fildyn',fildyn) )
+
+    db.dadd('matdyn_par',('flfrc',flfrc) )
+    db.dadd('matdyn_par',('flfrq',flfrq) )
+    db.dadd('matdyn_par',('fldos',fldos) )
+
+    db.dump()
 
     return
-##----------------------------------------------------------------------------##   
+
+##----------------------------------------------------------------------------##
+
+def set_pseudo_potencials(database):
+
+    # Prepaire the pseudo potencials dir used to write th espresso-in scf 
+    # input file. 
+    #
+    # - Read the cell_elements from atoms object and save them in a list
+    # - Remove cell_elements list repetition 
+    # - Get pseudopotentials directories for each cell element from database
+    # - Group pseudopotencials of interest in a dictionary
+    #  
+    #  @param:  - 'cell_structure': (atoms obeject) that contains all cell_elements 
+    #  @return: - 'pseudo_dir'    : (dict) cell_elements and correspondent 
+    #                               directories of pseudopotencial files 
+    #                               to be used to create pw (scf) input files
+    
+    db = pk.load(database, False)
+    
+    #get cell elements
+    structure = get_cell_structure(database = database)
+    cell_elements = structure.get_chemical_symbols()
+    cell_elements = list( dict.fromkeys(cell_elements) )#remove repeated
+
+    #save pseudo_files of interest
+    db.dcreate ('pseudo_pw')
+    for element in cell_elements:
+        pseudo_file = db.dget('pseudo_dirs', element)
+        db.dadd('pseudo_pw',(element, pseudo_file))
+
+    db.dump()
+
+    return 
+##----------------------------------------------------------------------------##
+
+def set_ecut (database):
+
+    # Get ecutwfc and ecutrho values based on pseudopotencial files suggestions
+    #
+    # - Read all pseudopotencial files and save their content in the list
+    # 'pseuto_content'
+    # - Read each pseudopotencial content and ge ecut information saved in the 
+    # lists: 'ecutwfc_values' and 'ecutrho_values'
+    # - Get the maximmum values suggested for each variable
+    #  
+    #  @param:  - 'pseudo' : (dict) contain the directory of each element's 
+    #                        pseudopotenail file
+    #  @return: - 'ecutwfc': (int) maximum value suggested for ecutwfc variable
+    #             'ecutrho': (int) maximum value suggested for ecutrho variable
+
+    db = pk.load(database, False)
+    pseudo = db.dgetall('pseudo_pw')
+    pseudo_path = db.dget('dir', 'pseudo_folder')
+
+    pseudo_dir = pseudo.values()
+
+    pseudo_files =[]
+    for file_name in pseudo_dir:
+        file_directory = os.path.join(pseudo_path, file_name)
+        with open(file_directory, 'r') as f:
+            file_content = f.readlines()
+        pseudo_files.append(file_content)
+    
+    ecutwfc_values = []
+    ecutrho_values = []
+    for content in pseudo_files:
+        for line in content:
+            if line.find('Suggested minimum cutoff for wavefunctions') > -1:
+                aux = line.split(':')[1]
+                aux2 = aux.strip(' .Ry\n')
+                ecutwfc_values.append(int(aux2))
+            elif line.find('Suggested minimum cutoff for charge density') > -1:
+                aux = line.split(':')[1]
+                aux2 = aux.strip(' .Ry\n')
+                ecutrho_values.append(int(aux2))
+                
+    ecutwfc = max(ecutwfc_values)
+    ecutrho = max(ecutrho_values)
+    
+    return ecutwfc, ecutrho
+##----------------------------------------------------------------------------##
+
+def get_cell_structure(database):
+
+    # Get info for Writting input pw.x input files. 
+    #
+    # - Read cell_structure user input file and save atoms object
+    # - Set pseudopotencials acoordinly with cell_structure cell_elements 
+    # - Get ecut energies from pseudopotential files suggestions 
+    #
+    #  @param:  - 
+    #  @return: -
   
+    db = pk.load(database, False)
+
+    #get cell structure from .cif file
+    file_dir = db.dget('cell_structure','dir')
+    cell_structure_format = db.dget('cell_structure','format')
+
+    structure = ase.io.read(filename = file_dir,
+                            format=cell_structure_format,
+                            subtrans_included = False,
+                            primitive_cell= True)
+
+    return structure
+##----------------------------------------------------------------------------##
+
 def isnumber (number):
 
     # Test if a string represents a number
@@ -247,10 +420,13 @@ def add_parameter_qe (file_dir, parameter, section):
     #                         should be added
     #  @return: no return.        
 
-    content = get_file(file_dir = file_dir)
+    with open(file_dir, 'r') as f:
+       content = f.readlines()
 
-    section_pos = get_word_position (word= section, 
-                                    content = content)
+    for line in content:
+        if line.find(section.upper() or section.lower()) > -1:
+            section_pos = content.index(line)
+            break
     
     key = str(parameter[0])
     value = str(parameter[1])
@@ -270,177 +446,71 @@ def add_parameter_qe (file_dir, parameter, section):
     
     content.insert(new_pos,new_info)
 
-    write_file (file_dir = file_dir, 
-                        content = content)
+    with open(file_dir, 'w') as f:     
+            for line in content:
+                f.write(line)
 
     return
 ##----------------------------------------------------------------------------##
 
-def remove_repeated (list_input):
+def write_espresso_in_pw ():
 
-    # Remove all the repeated values of a list. 
-    # 
-    # When the list is used as keys to create a dictionare, the duplicats 
-    # are automatically removed because keys are unique. 
-    # Later, the keys from the dictionary are transformed into a list again.
-    #  
-    #  @param: - 'list_input': (list) to be removed repetitions
-    #  @return: - 'list_output': (list) without repetition
-
-    list_output = list( dict.fromkeys(list_input) )
-
-    return list_output
-##----------------------------------------------------------------------------##
-
-def set_pseudo_potencials (cell_structure):
-
-    # Prepaire the pseudo potencials dir used to write th espresso-in scf 
-    # input file. 
+    # Write input pw.x file for scf = scf1 or scf = scf2.
     #
-    # - Read the elements from atoms object and save them in a list
-    # - Remove elements list repetition 
-    # - Get pseudopotentials directories for each cell element from database
-    # - Group pseudopotencials of interest in a dictionary
-    #  
-    #  @param:  - 'cell_structure': (atoms obeject) that contains all elements 
-    #  @return: - 'pseudo_dir'    : (dict) elements and correspondent 
-    #                               directories of pseudopotencial files 
-    #                               to be used to create pw (scf) input files
-    
-    elements = cell_structure.get_chemical_symbols()
-    elements = remove_repeated(elements)
-
-    db = pk.load(_DATABASE, False)
-    
-    pseudo_dir = {}
-    for element in elements:
-        pseudo = db.dget('pseudo',element)
-        pseudo_dir.update({element:pseudo})
-
-    db.dump()
-
-    return pseudo_dir
-##----------------------------------------------------------------------------##
-
-def set_ecut (pseudo):
-
-    # Get ecutwfc and ecutrho values based on pseudopotencial files suggestions
-    #
-    # - Read all pseudopotencial files and save their content in the list
-    # 'pseuto_content'
-    # - Read each pseudopotencial content and ge ecut information saved in the 
-    # lists: 'ecutwfc_values' and 'ecutrho_values'
-    # - Get the maximmum values suggested for each variable
-    #  
-    #  @param:  - 'pseudo' : (dict) contain the directory of each element's 
-    #                        pseudopotenail file
-    #  @return: - 'ecutwfc': (int) maximum value suggested for ecutwfc variable
-    #             'ecutrho': (int) maximum value suggested for ecutrho variable
-
-    pseudo_dir = pseudo.values()
-
-    pseudo_content =[]
-    for directory in pseudo_dir:
-        file_name = '../../pseudo/' + directory
-        file_content = get_file(file_name)
-        pseudo_content.append(file_content)
-    
-
-    ecutwfc_values = []
-    ecutrho_values = []
-    for content in pseudo_content:
-        for line in content:
-            if line.find('Suggested minimum cutoff for wavefunctions') > -1:
-                aux = line.split(':')[1]
-                aux2 = aux.strip(' .Ry\n')
-                ecutwfc_values.append(int(aux2))
-            elif line.find('Suggested minimum cutoff for charge density') > -1:
-                aux = line.split(':')[1]
-                aux2 = aux.strip(' .Ry\n')
-                ecutrho_values.append(int(aux2))
-        
-    ecutwfc = max(ecutwfc_values)
-    ecutrho = max(ecutrho_values)
-    
-    return ecutwfc, ecutrho
-##----------------------------------------------------------------------------##
-
-
-def save_file_name (program, name):
-
-##------------------------------------------------------------------------------
-#  
-##------------------------------------------------------------------------------
-    db = pk.load(_DATABASE, False)
-
-    db.dadd('dir',(program, name))
-
-    db.dump()
-    
-    return 
-
-##----------------------------------------------------------------------------##
-
-def write_espresso_in_pw (scf1):
-
-    # Write input pw.x file for scf1 or scf2 calculus. If scf1 = True, it writs 
-    # the scf1 file. Otherwise, it writes scf2 file
-    #
-    # - Read cell_structure user input file and save atoms object
-    # - Set pseudopotencials acoordinly with cell_structure elements 
-    # - Get ecut energies from pseudopotential files suggestions 
-    # - Get the rest of parametrs from database accordinly with scf1 tag
+    # - Get the parametrs from database accordinly with scf tag
     # - Write output file
     # 
-    #  @param: - scf1: (bool) indicates if it wiol be genarated scf1 or 
-    #                  scf2 file
+    #  @param: - scf: (str) indicates if it will be genarated scf1 or 
+    #                  scf2 file. Must be 'scf1' or 'scf2'.
     #  @return: no return.
     
+    structure = get_cell_structure(database = _DATABASE)
+
+    #get data from database
     db = pk.load(_DATABASE, False)
 
-    #get cell structure
-    file_dir = db.dget('cell_structure','dir')
-    cell_structure_format = db.dget('cell_structure','format')    
-    structure = ase.io.read(filename = file_dir,
-                            format=cell_structure_format,
-                            subtrans_included = False,
-                            primitive_cell= True)
-    
-    #set variables
-    pseudo = set_pseudo_potencials(structure)
-    ecutwfc, ecutrho = set_ecut(pseudo)
-    db.dadd('pw_par',('ecutwfc',ecutwfc) )
-    db.dadd('pw_par',('ecutrho',ecutrho) )
-    pw_parameters = db.dgetall('pw_par')
+
     prefix = db.dget('pw_par','prefix')
+    pseudo = db.dgetall('pseudo_pw')
+    pw_parameters = db.dgetall('pw_par')
+    input_dir = db.dget('dir', 'input_dir')
+    work_dir = db.dget('dir', 'work_dir')
+    #scf1
+    kgrid1 = db.dget('grids','kdense_div')
+    koffset1 = db.dget('grids','kdense_off')
+    file_name1 = db.dget('input_name', 'scf1')
+    #scf2
+    kgrid2 = db.dget('grids','kcoarse_div')
+    koffset2 = db.dget('grids','kcoarse_off')
+    file_name2 = db.dget('input_name', 'scf2')
 
-    if(scf1 == True):
-        kgrid = db.dget('grids','kdense_div')
-        koffset = db.dget('grids','kdense_off')
-        scf_file_name = prefix+'.scf1.in'
-        db.dump()
-        save_file_name(program = 'scf1', name = scf_file_name)
-        
-    else:
-        kgrid = db.dget('grids','kcoarse_div')
-        koffset = db.dget('grids','kcoarse_off')
-        scf_file_name = prefix+'.scf2.in'
-        db.dump()
-        save_file_name(program = 'scf2', name = scf_file_name)
+    #set work directory    
+    os.chdir(input_dir)
 
-    #make scf input QE files
-    ase.io.write(filename= scf_file_name,
+    #make scf1 input QE file
+    ase.io.write(filename = file_name1,
                 images = structure,
-                format='espresso-in',
-                input_data=pw_parameters,
-                pseudopotentials=pseudo,
-                kpts=kgrid,
-                koffset=koffset)
+                format = 'espresso-in',
+                input_data = pw_parameters,
+                pseudopotentials = pseudo,
+                kpts = kgrid1,
+                koffset = koffset1)
 
-    if(scf1 == True):
-        add_parameter_qe(file_dir = scf_file_name, 
-                        parameter = ('la2F','.true.'), 
-                        section = 'system')
+    add_parameter_qe(file_dir = file_name1, 
+                    parameter = ('la2F','.true.'), 
+                    section = 'system')
+
+    #make scf2 input QE file
+    ase.io.write(filename = file_name2,
+                images = structure,
+                format = 'espresso-in',
+                input_data = pw_parameters,
+                pseudopotentials = pseudo,
+                kpts = kgrid2,
+                koffset = koffset2)    
+
+    #return work directory    
+    os.chdir(work_dir)  
 
     return
 ##----------------------------------------------------------------------------##
@@ -465,15 +535,17 @@ def write_espresso_in(program):
     parameters = dict(db.dgetall(qe_dict).items())
     section_name = db.dget('section_name', program)
     file_order = db.dget('file_order', program)
+    file_name = db.dget('input_name', program)
+    input_dir = db.dget('dir', 'input_dir')
+    work_dir = db.dget('dir', 'work_dir')
 
-    db.dump()
+    #set work directory  
+    os.chdir(input_dir)
 
     #create and write file
-    file_name = prefix + '.' + program + '.in'
-    save_file_name(program = program, name = file_name)
-
-    line = ['&'+section_name.upper()+'\n/\n']
-    write_file(file_dir = file_name, content = line)
+    first_line = '&'+section_name.upper()+'\n/\n'
+    with open(file_name, 'w') as f:     
+        f.write(first_line)
 
     file_order.reverse()
     for key in file_order:
@@ -481,6 +553,9 @@ def write_espresso_in(program):
         add_parameter_qe(file_dir = file_name, 
                         parameter = (key,value), 
                         section = section_name) 
+
+    #return work directory    
+    os.chdir(work_dir)  
 
     return 
 ##----------------------------------------------------------------------------##
@@ -495,41 +570,69 @@ def run_espresso_in(program):
 
     #Get info from database
     db = pk.load(_DATABASE, False)
-
+    
+    input_dir = db.dget('dir', 'input_dir')
+    work_dir = db.dget('dir', 'work_dir')
+    calc_dir = db.dget('dir', 'calc_dir')
+    out_dir = db.dget('dir', 'out_dir')   
     dir_qe = str(db.dget('dir','qe_programs'))    
-    file_name = str(db.dget('dir', program))
-    prefix = (db.dget('pw_par', 'prefix'))
+    input_name = str(db.dget('input_name', program))
+    output_name = str(db.dget('output_name', program))
     np = str(db.dget('mpi','np'))  
     nk = str(db.dget('mpi','nk'))
-
-    db.dump()    
-
-    #set variables
-    output_name = prefix + '.' + program + '.out'
     
+    #set work directory    
+    os.chdir(calc_dir)
+
+    input_name = os.path.join('..', input_dir, input_name)
+
+    #set and verify QE directory    
     if program.find('scf') > -1:
-        dir_program = dir_qe + 'pw' +'.x'
+        dir_program = os.path.join(dir_qe, 'pw.x')
     else:
-        dir_program = dir_qe + program +'.x'
+        dir_program = os.path.join(dir_qe, program + '.x')
 
-    #make command str
+    if dir_qe:
+        assert os.path.isdir(dir_program), 'Could not find Quantum Espresso'
+    else:
+        p = subprocess.run(['which', dir_program], stdout = subprocess.PIPE, 
+                           stderr = subprocess.PIPE)
+        assert str(p.stdout).split("'")[1], 'Could not find Quantum Espresso'        
+    
+    #make command
     if program.find('lambda' or 'q2r') > -1:
-        command = dir_program +' < ' + file_name + ' > ' + output_name
+        command = dir_program + ' < ' + input_name
     elif program.find('matdyn') > -1:
-        command = ('mpiexec' + ' -np ' + np + ' ' + dir_program + ' -in ' + file_name 
-                   + ' > ' + output_name)
+        command = 'mpiexec'+' -np '+np+' '+dir_program+' -in '+input_name
     else:
-        command = ('mpiexec' + ' -np ' + np + ' ' + dir_program + ' -nk ' + nk + ' -in ' 
-                  + file_name + ' > ' + output_name)
-
-    print (command)
+        command = 'mpiexec'+' -np '+np+' '+dir_program+' -nk '+nk+' -in '+input_name
 
     #run program
-    text1 = '\n running {program_txt}... \n'
-    print(text1.format(program_txt = program))
-    os.system(command) 
-    text2 = '\n {program_txt} fineshed! :D \n'
-    print(text2.format(program_txt = program))
+    text = '\nrunning {program_txt}...'
+    print(text.format(program_txt = program))
+    try:
+        process = subprocess.run(command, shell = True,
+                                 stdout = subprocess.PIPE, 
+                                 universal_newlines = True, 
+                                 stderr=subprocess.PIPE,
+                                 check = True)
+    except subprocess.CalledProcessError as err:
+        print("Execution failed:", err, file=sys.stderr)
+        raise
+    except OSError as err:
+        print("Execution failed:", err, file=sys.stderr)
+        raise
+    else:
+        #set work directory    
+        os.chdir(out_dir)
+
+        with open(output_name, 'w') as f:
+            f.write(str(process.stdout))
+        text = '{program_txt} fineshed! :D'
+        print(text.format(program_txt = program))
+
+    #return work directory    
+    os.chdir(work_dir)
 
     return 
 ##----------------------------------------------------------------------------##
@@ -589,16 +692,22 @@ def write_espresso_in_lambda():
     db = pk.load(_DATABASE, False)
 
     sigma = db.dget('lambda_par','sigma_omega')
+    input_name = db.dget('input_name', 'lambda')
     mu =  db.dget('lambda_par','mu')
     file_dyn_prefix = db.dget('ph_par','fildyn')
     prefix = db.dget('pw_par','prefix')
-
-    db.dump()
+    calc_dir = db.dget('dir', 'calc_dir')
+    input_dir = db.dget('dir', 'input_dir')
+    work_dir = db.dget('dir', 'work_dir')
+    
+    #set work directory    
+    os.chdir(calc_dir)
 
     #get q points information
-    #file .dyn0 contains q points information used lambda.in file
+    #file .dyn0 contains q points information used in lambda.in file
     file_name = file_dyn_prefix + '0'
-    content = get_file(file_dir = file_name)
+    with open(file_name, 'r') as f:
+       content = f.readlines()
     content.pop(0)
 
     q_points_info = content 
@@ -608,7 +717,8 @@ def write_espresso_in_lambda():
     dyn_info = []
     for num in range(1,num_q_points+1):
         file_name = file_dyn_prefix + str(num)
-        content = get_file(file_dir = file_name)
+        with open(file_name) as f:
+            content = f.readlines()
         dyn_info.append(content)
 
     multiplicity = get_multplicity(dyn_files = dyn_info)
@@ -635,12 +745,17 @@ def write_espresso_in_lambda():
     lambda_info.extend(part_2)
     lambda_info.extend(part_3)
 
-    lambda_file_name = prefix + '.lambda.in'
-    save_file_name(program = 'lambda',name = lambda_file_name)
+    #set work directory    
+    os.chdir(input_dir)
 
-    write_file (file_dir = lambda_file_name, content=lambda_info)
+    with open(input_name, 'w') as f:     
+        for line in lambda_info:
+            f.write(line)
 
-    print('\n lambda.in file wrote \n')
+    print('\nlambda.in file wrote!')
+
+    #return work directory    
+    os.chdir(work_dir)  
 
     return
 ##----------------------------------------------------------------------------##
@@ -649,27 +764,35 @@ def write_espresso_in_lambda():
 ##----------------------------------------------------------------------------##
 ################################################################################
 
-#treat input data and prepaire 
-user_input = sys.argv[1]
+#treat input data and prepaire work environment
+start_time = time.time()
 
+user_input = sys.argv[1]
 input_info = get_input_data(data = user_input)
-mk_work_enviroment(input_info = input_info)
-mk_data_base(input_info = input_info)
+dir_info   = mk_work_environment(input_info = input_info)
+
+_DATABASE = mk_data_base(input_info = input_info, 
+                         dir_info = dir_info)
 
 #write input files
-write_espresso_in_pw(scf1 = True)
-write_espresso_in_pw(scf1= False)
+write_espresso_in_pw()
 write_espresso_in(program = 'ph')
 write_espresso_in(program = 'q2r')
 write_espresso_in(program = 'matdyn')
 
 #run programs pw, ph, q2r and matdyn
-run_espresso_in(program= 'scf1')
-run_espresso_in(program= 'scf2')
-run_espresso_in(program= 'ph')
-run_espresso_in(program= 'q2r')
-run_espresso_in(program= 'matdyn')
+run_espresso_in(program = 'scf1')
+run_espresso_in(program = 'scf2')
 
+print('\nTotal Execution time:', time.time()-start_time)
+run_espresso_in(program = 'ph')
+print('\nTotal Execution time:', time.time()-start_time)
+
+run_espresso_in(program = 'q2r')
+run_espresso_in(program = 'matdyn')
+
+#Tc calculus
 write_espresso_in_lambda()
-
 run_espresso_in(program= 'lambda')
+
+print('\nTotal Execution time:', time.time()-start_time)

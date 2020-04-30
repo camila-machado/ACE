@@ -1,15 +1,36 @@
-import pickledb as pk
+#!/usr/bin/env python3
 
-#importar dados anteriores
-db = pk.load('config.db', False)
+##------------------------------------------------------------------------------
+# CNPEM - National Brazilian Center for Research in Energy and Materials
+# Sirius - Research Group EMA
+#
+# Code project: TC_caculus
+# 
+# Objectif:
+# Automate the use of Quantum Espresso (QE) for the calculus of 
+# Superconductivity Critical Temperature (Tc) of diferent molecules and 
+# cell structures
+# 
+##------------------------------------------------------------------------------
+
+#MODULES
+import pickledb as pk
+import sys
+
+#user input
+_DATABASE = sys.argv[1]
+
+#create database
+db = pk.load(_DATABASE, False)
 
 #------------------Dicionarios de Dados------------------#
 ##------------------------------------------------------------------------------
 
-#opcional: caso os programas do quantum-espresso não estejam no $PATH 
+#opcional: caso os programas do quantum-espresso não estejam no $PATH do Linux
 #dir - 
 db.dcreate ('dir')
 db.dadd('dir',('qe_programs','') )
+db.dadd('dir',('pseudo_folder','/home/camila/Documentos/EMA/Program-TC/pseudo') )
 
 #mpi - 
 db.dcreate ('mpi')
@@ -37,7 +58,7 @@ db.dadd('grids',('kdense_off',(0,0,0)) )
 #qe_ph_par
 db.dcreate ('ph_par')
 
-db.dadd('ph_par',('tr2_ph','1e-12') )
+db.dadd('ph_par',('tr2_ph',1e-12) )
 db.dadd('ph_par',('ldisp','.true.') )
 db.dadd('ph_par',('nq1',3) )
 db.dadd('ph_par',('nq2',3) )
@@ -68,22 +89,6 @@ db.dcreate ('lambda_par')
 
 db.dadd('lambda_par',('sigma_omega', 0.12 ) )
 db.dadd('lambda_par',('mu',0.16) )
-
-#pseudo potenciais
-db.dcreate ('pseudo')
-
-db.dadd('pseudo',('Ba','Ba.pbe-spn-kjpaw_psl.1.0.0.UPF') )
-db.dadd('pseudo',('Bi','Bi.pbe-dn-kjpaw_psl.1.0.0.UPF') )
-db.dadd('pseudo',('Ca','Ca.pbe-spn-kjpaw_psl.1.0.0.UPF') )
-db.dadd('pseudo',('Cu','Cu.pbe-dn-kjpaw_psl.1.0.0.UPF') )
-db.dadd('pseudo',('H' ,'H.pbe-kjpaw_psl.1.0.0.UPF') )
-db.dadd('pseudo',('Hg','Hg.pbe-n-kjpaw_psl.1.0.0.UPF') )
-db.dadd('pseudo',('O' ,'O.pbe-n-kjpaw_psl.1.0.0.UPF') )
-db.dadd('pseudo',('Pd','Pd.pbe-n-kjpaw_psl.1.0.0.UPF') )
-db.dadd('pseudo',('Pr','Pr.pbe-spdn-kjpaw_psl.1.0.0.UPF') )
-db.dadd('pseudo',('S' ,'S.pbe-n-kjpaw_psl.1.0.0.UPF') )
-db.dadd('pseudo',('Sr','Sr.pbe-spn-kjpaw_psl.1.0.0.UPF') )
-db.dadd('pseudo',('Y' ,'Y.pbe-spn-kjpaw_psl.1.0.0.UPF') )
 
 #Escrever dados
 db.dump()

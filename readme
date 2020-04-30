@@ -15,20 +15,40 @@
 #->Unpack .tar.gz
 #->Open terminal in unpacked folder 
 #->Open write_config.py and change variables at will
-#->Remember to save the pseudo potential files you need in 'pseudo' folder and #add their names in write_config.py as previous ones
+#->Remember to save the pseudo potential files you need in 'pseudo' folder
+#->Add Quantum Espresso and Program.py to Linux path(*)
+#->Enable Program.py as executable(**)
 
 #call in terminal:
 
-python3 program.py directory/file_name.cif
+program.py directory/file_name.cif
 
 #Enjoy your TC's!!!
+
+(*) You can run the commands in shell Linux environment:
+$ export PATH = $PATH:<quantum_espresso_bin_dir>
+$ export PATH = $PATH:<Program.py_dir>
+$ export PATH = $PATH:<Write.py_dir>
+$ echo $PATH (to check result)
+obs: temporary solution, valid only in current shell
+
+or
+
+add the command lines to the .bashrc file for permanet solution, and run:
+$ souce .bashrc (to execut alterations and make them valid)
+
+(**) Run the command:
+$ chmod +x program.py
+$ chmod +x write.py
 
 #-------------------------------------------------------------------------------
 #New features:
 
-#-> No need to run 'write.py', because it is automatically called by program.py 
-#during execution
-#-> Results are saved in a subdirectory named after the .cif file
-
-
-
+#-> Automatically find pseudopotential files from pseudo folder
+#-> Replace os.system  with new subprocess module
+#-> Make program.py an executable file
+#-> Add exception treatment
+#-> Improve organization of output files
+#-> Save database with prefix in file name
+#-> Save cell structure input file 
+#-> Count execution time
