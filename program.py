@@ -30,7 +30,7 @@ from pathlib import PurePath
 
 #FUNCTIONS
 
-def get_input_data(data):
+def get_input_data():
 
     # Read the input from user and save the correspondent file information 
     # (file directory, file format, and prefix) in the database
@@ -39,21 +39,38 @@ def get_input_data(data):
     #  @return: no return. the function modify the database directly
 
     #get input information
-    file_dir = os.path.normpath(data)
-    assert os.path.isfile(file_dir), 'Entrance must be a file directory'    
-    path = PurePath(file_dir)
-       
-    prefix = path.stem
-    file_format = path.suffix.strip('.')
+    input_user = sys.argv
+    input_structure = input_user[1]
+    
+    #treat structure data
+    path_structure = PurePath(input_structure)
 
-    assert file_format == 'cif', 'Entrance file must be .cif type'
+    prefix = path_structure.stem
+    file_dir = str(path_structure)
+    file_format = path_structure.suffix.strip('.')
+
+    assert os.path.isfile(path_structure), 'Structure entrance must be a file directory'    
+    assert file_format == 'cif', 'STructure entrance file must be .cif type'
 
     input_info = {
     'prefix': prefix,
-    'file_dir':file_dir,
-    'file_format':file_format
+    'file_dir': file_dir,
+    'file_format':file_format,
+    'test_config':False
     }
-
+    
+    #treat config data
+    if len(input_user) == 3:
+        input_config = input_user[2]
+        path_config = PurePath(input_config)
+        assert os.path.isfile(path_config), 'Config entrance must be a file directory'
+        
+        config_name = path_config.name        
+        config_dir = str(path_config)
+        input_info.update({'config_dir':config_dir})
+        input_info.update({'config_name':config_name})
+        input_info.update({'test_config':True})
+      
     return input_info
 ##----------------------------------------------------------------------------##
 def mk_work_environment(input_info):
@@ -94,7 +111,6 @@ def mk_data_base(input_info, dir_info):
     #  @return:
 
     prefix =  input_info.get('prefix')
-
     database = prefix + '_config.db'
 
     #Construct database
@@ -104,12 +120,13 @@ def mk_data_base(input_info, dir_info):
         print("Execution failed:", err, file=sys.stderr)
         raise
     else:
-        print('Database created')
+        print('Check: Database created')
     
     set_cell_structure(input_info = input_info, database = database)
 
-    set_fixed_values(prefix = prefix, 
-                     dir_info = dir_info, database = database)
+    set_dir_info (dir_info = dir_info, database = database)
+
+    set_fixed_values(prefix = prefix, database = database)
 
     try:
         set_pseudo_potencials(database = database)
@@ -122,6 +139,36 @@ def mk_data_base(input_info, dir_info):
     set_program_parameters(prefix = prefix, database = database)
 
     return database
+
+##----------------------------------------------------------------------------##
+
+def copy_data_base(input_info):
+    
+    # Order of the 'set' functions matters
+    #
+    #  @param:  
+    #  @return:
+    
+    database = input_info.get('config_name')
+    config_dir = input_info.get('config_dir')
+    current_path = os.getcwd()
+
+    # adding exception handling
+    try:
+        shutil.copy(config_dir, current_path)
+    except IOError as e:
+        print('Unable to copy config.db file. %s' % e)
+        raise
+    except:
+        print('Unexpected error:', sys.exc_info())
+        raise
+    else: 
+        print('Check: Database file found')
+    
+    set_dir_info (dir_info = dir_info, database = database)
+
+    return database
+
 ##----------------------------------------------------------------------------##
 def set_cell_structure(input_info, database):
 
@@ -153,8 +200,7 @@ def set_cell_structure(input_info, database):
     
     return
 ##----------------------------------------------------------------------------##
-
-def set_fixed_values(prefix, dir_info, database):
+def set_dir_info (dir_info, database):
 
     calc_dir = dir_info.get('calc_dir')
     out_dir = dir_info.get('out_dir')
@@ -168,7 +214,16 @@ def set_fixed_values(prefix, dir_info, database):
     db.dadd('dir',('out_dir',out_dir) )
     db.dadd('dir',('input_dir',input_dir) )
     db.dadd('dir',('work_dir',work_dir) )
-    
+
+    db.dump()
+
+    return
+
+##----------------------------------------------------------------------------##
+def set_fixed_values(prefix, database):
+
+    db = pk.load(database, False)
+
     #Input files' names
     db.dcreate('input_name')
     db.dadd('input_name',('scf1', prefix + '.scf1.in' ))
@@ -767,12 +822,15 @@ def write_espresso_in_lambda():
 #treat input data and prepaire work environment
 start_time = time.time()
 
-user_input = sys.argv[1]
-input_info = get_input_data(data = user_input)
+input_info = get_input_data()
 dir_info   = mk_work_environment(input_info = input_info)
 
-_DATABASE = mk_data_base(input_info = input_info, 
-                         dir_info = dir_info)
+test_config = input_info.get('test_config')
+if test_config:
+    _DATABASE = copy_data_base(input_info = input_info)
+else:
+    _DATABASE = mk_data_base(input_info = input_info, 
+                             dir_info = dir_info)
 
 #write input files
 write_espresso_in_pw()
@@ -793,6 +851,6 @@ run_espresso_in(program = 'matdyn')
 
 #Tc calculus
 write_espresso_in_lambda()
-run_espresso_in(program= 'lambda')
+run_espresso_in(program = 'lambda')
 
 print('\nTotal Execution time:', time.time()-start_time)
