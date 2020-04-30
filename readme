@@ -42,7 +42,7 @@ $ chmod +x program.py
 $ chmod +x write.py
 
 #-------------------------------------------------------------------------------
-#New features:
+#New features v-2.0:
 
 #-> Automatically find pseudopotential files from pseudo folder
 #-> Replace os.system  with new subprocess module
