@@ -21,7 +21,11 @@
 
 #call in terminal:
 
-program.py directory/file_name.cif
+$ program.py directory/file_name.cif
+
+or
+
+$ program.py directory/file_name.cif directory/file_name_config.db
 
 #Enjoy your TC's!!!
 
@@ -42,13 +46,6 @@ $ chmod +x program.py
 $ chmod +x write.py
 
 #-------------------------------------------------------------------------------
-#New features v-2.0:
+#New features v-2.1:
 
-#-> Automatically find pseudopotential files from pseudo folder
-#-> Replace os.system  with new subprocess module
-#-> Make program.py an executable file
-#-> Add exception treatment
-#-> Improve organization of output files
-#-> Save database with prefix in file name
-#-> Save cell structure input file 
-#-> Count execution time
+#-> Repeat a previous calculation with the same database as second input file
