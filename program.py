@@ -50,7 +50,7 @@ def get_input_data():
     file_format = path_structure.suffix.strip('.')
 
     assert os.path.isfile(path_structure), 'Structure entrance must be a file directory'    
-    assert file_format == 'cif', 'STructure entrance file must be .cif type'
+    assert file_format == 'cif', 'Structure entrance file must be .cif type'
 
     input_info = {
     'prefix': prefix,
@@ -63,9 +63,12 @@ def get_input_data():
     if len(input_user) == 3:
         input_config = input_user[2]
         path_config = PurePath(input_config)
-        assert os.path.isfile(path_config), 'Config entrance must be a file directory'
+        config_name = path_config.name
         
-        config_name = path_config.name        
+        assert os.path.isfile(path_config), 'Config entrance must be a file directory'
+        assert config_name.find('_config.db') != -1, 'Config entrance must be a database'
+        assert config_name.find('prefix') != -1, 'Config entrance must match structure file'
+        
         config_dir = str(path_config)
         input_info.update({'config_dir':config_dir})
         input_info.update({'config_name':config_name})
@@ -73,6 +76,17 @@ def get_input_data():
       
     return input_info
 ##----------------------------------------------------------------------------##
+def path_exist(path):
+
+    exist = os.path.exists(path)
+    if exist == True:
+        new_path = path + '_new'
+        path = path_exist(new_path)
+
+    return path
+
+##----------------------------------------------------------------------------##
+
 def mk_work_environment(input_info):
 
     # 
@@ -85,10 +99,11 @@ def mk_work_environment(input_info):
     old_path = os.getcwd()
     new_path = os.path.join(old_path, prefix)
 
-    #@ trecho a ser mudado -> "continuar de onde parou"
-    exist = os.path.exists(new_path)
-    if exist == True:
-        shutil.rmtree(new_path)
+    new_path = path_exist(new_path)
+
+#    exist = os.path.exists(new_path)
+#    if exist == True:
+#        shutil.rmtree(new_path)
 
     dir_names = ['calc_dir', 'out_dir', 'input_dir']
     dir_info = {}
@@ -823,9 +838,11 @@ def write_espresso_in_lambda():
 start_time = time.time()
 
 input_info = get_input_data()
-dir_info   = mk_work_environment(input_info = input_info)
 
 test_config = input_info.get('test_config')
+
+dir_info   = mk_work_environment(input_info = input_info)
+
 if test_config:
     _DATABASE = copy_data_base(input_info = input_info)
 else:
