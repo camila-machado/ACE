@@ -14,18 +14,25 @@
 
 #->Unpack .tar.gz
 #->Open terminal in unpacked folder 
-#->Open write_config.py and change variables at will
+#->Open write.py and change variables at will
 #->Remember to save the pseudo potential files you need in 'pseudo' folder
-#->Add Quantum Espresso and Program.py to Linux path(*)
-#->Enable Program.py as executable(**)
+#->Add Quantum Espresso and program.py to Linux path(*)
+#->Enable program.py as executable(**)
 
 #call in terminal:
 
-$ program.py directory/file_name.cif
+$ program.py <directory/input_file> <command> 
 
-or
+- Input file formats: '.cif' or 'config.db'
+- Commands:
+    'n' - (new) create a new directory for output files
+    'w' - (overwrite) in case of name conflict, overwrite the data of a 
+          previous calculation
 
-$ program.py directory/file_name.cif directory/file_name_config.db
+obs1: The original '.cif' file must be in the directory of the 'config.db' 
+      input file in order for this input work
+obs2: Command is optional
+obs3: The default operation mode is 'n' (new)
 
 #Enjoy your TC's!!!
 
@@ -46,6 +53,8 @@ $ chmod +x program.py
 $ chmod +x write.py
 
 #-------------------------------------------------------------------------------
-#New features v-2.1:
+#New features v-2.2:
 
-#-> Repeat a previous calculation with the same database as second input file
+#-> Unique input file, config.db or .cif
+#-> Implement operation modes: 'w' - overwrite, 'n' - New
+#-> Detect wrong input format files and accuses error

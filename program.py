@@ -21,7 +21,6 @@ import ase.io
 import pickledb as pk
 import sys
 import time
-
 import subprocess
 import os
 import shutil
@@ -39,52 +38,99 @@ def get_input_data():
     #  @return: no return. the function modify the database directly
 
     #get input information
-    input_user = sys.argv
-    input_structure = input_user[1]
+    user_input = sys.argv
+
+    #treat input command
+    command = ver_command(user_input = user_input)
+
+    #treat input file
+    input_file = user_input[1]
+
+    path_file = PurePath(input_file)
+
+    file_name = path_file.stem
+    file_dir = str(path_file)
+    file_format = path_file.suffix.strip('.')
+
+    assert os.path.isfile(path_file), 'Entrance must be a file directory'    
     
-    #treat structure data
-    path_structure = PurePath(input_structure)
+    #construct input_info
+    if file_format == 'db':
+        
+        assert file_name.find('_config') != -1, 'Config entrance must be a database'
+        
+        prefix = file_name.replace('_config','')
+        path_parent = str(path_file.parent)
+        path_structure = os.path.join(path_parent, prefix+'.cif')
 
-    prefix = path_structure.stem
-    file_dir = str(path_structure)
-    file_format = path_structure.suffix.strip('.')
+        assert os.path.isfile(path_structure), 'Could not find .cif file in {}'.format(path_parent)    
 
-    assert os.path.isfile(path_structure), 'Structure entrance must be a file directory'    
-    assert file_format == 'cif', 'Structure entrance file must be .cif type'
-
-    input_info = {
-    'prefix': prefix,
-    'file_dir': file_dir,
-    'file_format':file_format,
-    'test_config':False
-    }
+        input_info = {
+        'prefix': prefix,
+        'file_dir': path_structure,
+        'file_format':'cif',
+        'tag_config':True,
+        'config_dir': file_dir,
+        'config_name':file_name + '.db'
+        }
+            
+    elif file_format == 'cif':
+        input_info = {
+        'prefix': file_name,
+        'file_dir': file_dir,
+        'file_format':'cif',
+        'tag_config':False
+        }
     
-    #treat config data
-    if len(input_user) == 3:
-        input_config = input_user[2]
-        path_config = PurePath(input_config)
-        config_name = path_config.name
-        
-        assert os.path.isfile(path_config), 'Config entrance must be a file directory'
-        assert config_name.find('_config.db') != -1, 'Config entrance must be a database'
-        assert config_name.find('prefix') != -1, 'Config entrance must match structure file'
-        
-        config_dir = str(path_config)
-        input_info.update({'config_dir':config_dir})
-        input_info.update({'config_name':config_name})
-        input_info.update({'test_config':True})
-      
+    else:
+        raise AssertionError('Input file with incompatible format')
+    
+    input_info.update({'op_mode':command})    
+
     return input_info
+
 ##----------------------------------------------------------------------------##
-def path_exist(path):
+def ver_path_exist(path):
 
     exist = os.path.exists(path)
     if exist == True:
         new_path = path + '_new'
-        path = path_exist(new_path)
+        path = ver_path_exist(new_path)
 
     return path
 
+##----------------------------------------------------------------------------##
+def ver_command(user_input):
+
+    #get input command
+    if len(user_input) > 2:
+        command = user_input[2]
+    else:
+        command = 'n'
+
+    #verify operation mode
+    op_mode = command
+
+    operation_modes = {
+    'n': 'new directory', 
+    'c': 'continue calculation', 
+    'w': 'overwrite' 
+    }
+    
+    valid_modes = list(operation_modes.keys())
+    
+    try:
+        valid_modes.index(op_mode)
+    except ValueError as err:
+        print('Wrong: Invalid command "{}". Default mode activated.'.format(op_mode))
+        op_mode = 'n'
+ 
+    value = operation_modes.get(op_mode)
+
+    print('Check: Operation mode "{mode} - {extended}" activated'.format(
+        mode = op_mode, extended = value))
+
+    return op_mode
 ##----------------------------------------------------------------------------##
 
 def mk_work_environment(input_info):
@@ -95,15 +141,20 @@ def mk_work_environment(input_info):
     #  @return: 
 
     prefix = input_info.get('prefix')
+    op_mode = input_info.get('op_mode')
 
     old_path = os.getcwd()
     new_path = os.path.join(old_path, prefix)
 
-    new_path = path_exist(new_path)
+    if op_mode == 'n':
+        new_path = ver_path_exist(new_path)
+    elif op_mode == 'w':
+        exist = os.path.exists(new_path)
+        if exist == True:
+            shutil.rmtree(new_path)
+    elif op_mode == 'c':
+        new_path = ver_path_exist(new_path)
 
-#    exist = os.path.exists(new_path)
-#    if exist == True:
-#        shutil.rmtree(new_path)
 
     dir_names = ['calc_dir', 'out_dir', 'input_dir']
     dir_info = {}
@@ -116,9 +167,24 @@ def mk_work_environment(input_info):
     os.chdir(new_path)
 
     return dir_info
+
+##----------------------------------------------------------------------------##
+def construct_database(input_info, dir_info):
+
+    test_config = input_info.get('tag_config')
+    if test_config:
+        database = copy_data_base(input_info = input_info)
+    else:
+        database = mk_data_base(input_info = input_info)
+
+    set_dir_info(dir_info = dir_info, database = database)
+
+    #set_operation_mode(input_info = input_info, database = database)
+    
+    return database
 ##----------------------------------------------------------------------------##
 
-def mk_data_base(input_info, dir_info):
+def mk_data_base(input_info):
     
     # Order of the 'set' functions matters
     #
@@ -139,8 +205,6 @@ def mk_data_base(input_info, dir_info):
     
     set_cell_structure(input_info = input_info, database = database)
 
-    set_dir_info (dir_info = dir_info, database = database)
-
     set_fixed_values(prefix = prefix, database = database)
 
     try:
@@ -156,7 +220,6 @@ def mk_data_base(input_info, dir_info):
     return database
 
 ##----------------------------------------------------------------------------##
-
 def copy_data_base(input_info):
     
     # Order of the 'set' functions matters
@@ -180,8 +243,6 @@ def copy_data_base(input_info):
     else: 
         print('Check: Database file found')
     
-    set_dir_info (dir_info = dir_info, database = database)
-
     return database
 
 ##----------------------------------------------------------------------------##
@@ -838,16 +899,10 @@ def write_espresso_in_lambda():
 start_time = time.time()
 
 input_info = get_input_data()
-
-test_config = input_info.get('test_config')
-
 dir_info   = mk_work_environment(input_info = input_info)
 
-if test_config:
-    _DATABASE = copy_data_base(input_info = input_info)
-else:
-    _DATABASE = mk_data_base(input_info = input_info, 
-                             dir_info = dir_info)
+_DATABASE = construct_database(input_info = input_info, 
+                               dir_info = dir_info)
 
 #write input files
 write_espresso_in_pw()
