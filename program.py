@@ -58,6 +58,8 @@ def get_input_data():
     if file_format == 'db':
         
         assert file_name.find('_config') != -1, 'Config entrance must be a database'
+        assert ver_finish_stage( stage = 'database', 
+                                 database = file_dir), 'Config entrance corrupted'
         
         prefix = file_name.replace('_config','')
         path_parent = str(path_file.parent)
@@ -69,6 +71,7 @@ def get_input_data():
         'prefix': prefix,
         'file_dir': path_structure,
         'file_format':'cif',
+        'work_dir': path_parent,
         'tag_config':True,
         'config_dir': file_dir,
         'config_name':file_name + '.db'
@@ -85,7 +88,7 @@ def get_input_data():
     else:
         raise AssertionError('Input file with incompatible format')
     
-    input_info.update({'op_mode':command})    
+    input_info.update({'op_mode':command})
 
     return input_info
 
@@ -145,6 +148,7 @@ def mk_work_environment(input_info):
 
     old_path = os.getcwd()
     new_path = os.path.join(old_path, prefix)
+    test_dir = True
 
     if op_mode == 'n':
         new_path = ver_path_exist(new_path)
@@ -153,34 +157,71 @@ def mk_work_environment(input_info):
         if exist == True:
             shutil.rmtree(new_path)
     elif op_mode == 'c':
-        new_path = ver_path_exist(new_path)
-
+        new_path = input_info.get('work_dir')
+        test_dir = False
 
     dir_names = ['calc_dir', 'out_dir', 'input_dir']
     dir_info = {}
     for name in dir_names:
         path = os.path.join(new_path, name)
         dir_info.update({name:path})
-        os.makedirs(path)
+        if test_dir:
+            os.makedirs(path)
     dir_info.update({'work_dir':new_path})
 
     os.chdir(new_path)
 
     return dir_info
+##----------------------------------------------------------------------------##
+def finish_stage (stage, database):
 
+    curent_dir = os.getcwd()
+    dir_name = os.path.basename(curent_dir)
+    if dir_name.find('_dir') > -1:
+        new_dir = os.path.dirname(curent_dir)
+        os.chdir(new_dir)
+
+    db = pk.load(database, False)
+    db.dadd('calc_stage', (stage, True))
+    db.dump()
+    
+    os.chdir(curent_dir)
+
+    return 
+##----------------------------------------------------------------------------##
+def ver_finish_stage (stage, database):
+
+    curent_dir = os.getcwd()
+    dir_name = os.path.basename(curent_dir)
+    if dir_name.find('_dir') > -1:
+        new_dir = os.path.dirname(curent_dir)
+        os.chdir(new_dir)
+
+    db = pk.load(database, False)
+    test = db.dget('calc_stage', stage)
+    db.dump()
+    
+    os.chdir(curent_dir)
+
+    return test
 ##----------------------------------------------------------------------------##
 def construct_database(input_info, dir_info):
 
     test_config = input_info.get('tag_config')
-    if test_config:
+    op_mode = input_info.get('op_mode')
+
+    if op_mode == 'c':
+        database = input_info.get('config_name')
+        return database
+    elif test_config:
         database = copy_data_base(input_info = input_info)
     else:
         database = mk_data_base(input_info = input_info)
-
-    set_dir_info(dir_info = dir_info, database = database)
-
-    #set_operation_mode(input_info = input_info, database = database)
     
+    set_dir_info(dir_info = dir_info, database = database)
+    set_calc_stage (database = database)
+    finish_stage (stage = 'database', database = database)
+
     return database
 ##----------------------------------------------------------------------------##
 
@@ -226,7 +267,7 @@ def copy_data_base(input_info):
     #
     #  @param:  
     #  @return:
-    
+
     database = input_info.get('config_name')
     config_dir = input_info.get('config_dir')
     current_path = os.getcwd()
@@ -294,7 +335,30 @@ def set_dir_info (dir_info, database):
     db.dump()
 
     return
+##----------------------------------------------------------------------------##
+def set_calc_stage (database):
 
+    db = pk.load(database, False)
+
+    #Calculation stage
+    db.dcreate('calc_stage')
+    db.dadd('calc_stage',('database', False ))
+    db.dadd('calc_stage',('w_scf1', False ))
+    db.dadd('calc_stage',('w_scf2', False))
+    db.dadd('calc_stage',('w_ph', False))
+    db.dadd('calc_stage',('w_q2r', False))
+    db.dadd('calc_stage',('w_matdyn', False))
+    db.dadd('calc_stage',('w_lambda', False))
+    db.dadd('calc_stage',('r_scf1', False ))
+    db.dadd('calc_stage',('r_scf2', False))
+    db.dadd('calc_stage',('r_ph', False))
+    db.dadd('calc_stage',('r_q2r', False))
+    db.dadd('calc_stage',('r_matdyn', False))
+    db.dadd('calc_stage',('r_lambda', False))
+
+    db.dump()
+
+    return
 ##----------------------------------------------------------------------------##
 def set_fixed_values(prefix, database):
 
@@ -619,29 +683,39 @@ def write_espresso_in_pw ():
     os.chdir(input_dir)
 
     #make scf1 input QE file
-    ase.io.write(filename = file_name1,
-                images = structure,
-                format = 'espresso-in',
-                input_data = pw_parameters,
-                pseudopotentials = pseudo,
-                kpts = kgrid1,
-                koffset = koffset1)
 
-    add_parameter_qe(file_dir = file_name1, 
-                    parameter = ('la2F','.true.'), 
-                    section = 'system')
+    if (not ver_finish_stage(stage = 'w_scf1', database = _DATABASE)):
+        ase.io.write(filename = file_name1,
+                    images = structure,
+                    format = 'espresso-in',
+                    input_data = pw_parameters,
+                    pseudopotentials = pseudo,
+                    kpts = kgrid1,
+                    koffset = koffset1)
 
-    #make scf2 input QE file
-    ase.io.write(filename = file_name2,
-                images = structure,
-                format = 'espresso-in',
-                input_data = pw_parameters,
-                pseudopotentials = pseudo,
-                kpts = kgrid2,
-                koffset = koffset2)    
+        add_parameter_qe(file_dir = file_name1, 
+                        parameter = ('la2F','.true.'), 
+                        section = 'system')
+
+        finish_stage(stage = 'w_scf1', database = _DATABASE)
+    else:
+        print('input scf1 found!')
+
+    if (not ver_finish_stage(stage = 'w_scf2', database = _DATABASE)):
+        ase.io.write(filename = file_name2,
+                    images = structure,
+                    format = 'espresso-in',
+                    input_data = pw_parameters,
+                    pseudopotentials = pseudo,
+                    kpts = kgrid2,
+                    koffset = koffset2)
+
+        finish_stage(stage = 'w_scf2', database = _DATABASE) 
+    else:
+        print('input scf2 found!')
 
     #return work directory    
-    os.chdir(work_dir)  
+    os.chdir(work_dir)
 
     return
 ##----------------------------------------------------------------------------##
@@ -657,6 +731,11 @@ def write_espresso_in(program):
     #                     written. Vslues possible: 'ph', 'matdyn', 'q2r'. 
     #  @return: no return.
     
+    if ver_finish_stage(stage = 'w_'+program, database = _DATABASE):
+        text = 'input {program_txt} found!'
+        print(text.format(program_txt = program))
+        return
+
     qe_dict = program + '_par'
    
     #get data from database
@@ -685,6 +764,8 @@ def write_espresso_in(program):
                         parameter = (key,value), 
                         section = section_name) 
 
+    finish_stage(stage = 'w_'+program, database = _DATABASE) 
+
     #return work directory    
     os.chdir(work_dir)  
 
@@ -692,6 +773,11 @@ def write_espresso_in(program):
 ##----------------------------------------------------------------------------##
 
 def run_espresso_in(program):
+
+    if ver_finish_stage(stage = 'r_'+program, database = _DATABASE):
+        text = '{program_txt} previously run!'
+        print(text.format(program_txt = program))
+        return
 
     # Run espresso_in file
     # 
@@ -761,10 +847,12 @@ def run_espresso_in(program):
             f.write(str(process.stdout))
         text = '{program_txt} fineshed! :D'
         print(text.format(program_txt = program))
+        
+        finish_stage(stage = 'r_'+program, database = _DATABASE) 
 
     #return work directory    
     os.chdir(work_dir)
-
+    
     return 
 ##----------------------------------------------------------------------------##
 
@@ -809,6 +897,10 @@ def get_upper_freq(dyn_files):
 ##----------------------------------------------------------------------------##
 
 def write_espresso_in_lambda():
+
+    if ver_finish_stage(stage = 'w_lambda', database = _DATABASE):
+        print('\nlambda.in file found!')
+        return
 
     # Write espresso_in lambda file
     # 
@@ -882,6 +974,8 @@ def write_espresso_in_lambda():
     with open(input_name, 'w') as f:     
         for line in lambda_info:
             f.write(line)
+
+    finish_stage(stage = 'w_lambda', database = _DATABASE)
 
     print('\nlambda.in file wrote!')
 
