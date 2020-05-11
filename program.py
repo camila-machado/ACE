@@ -49,15 +49,46 @@ def get_input_data():
     path_file = PurePath(input_file)
 
     file_name = path_file.stem
-    file_dir = str(path_file)
+    file_path = str(path_file)
     file_format = path_file.suffix.strip('.')
 
     assert os.path.isfile(path_file), 'Entrance must be a file directory'    
     
     #construct input_info
-    if file_format == 'db':
+    if file_format == 'cif' and command != 'c':
+        input_info = {
+        'prefix': file_name,
+        'cell_file': file_path,
+        'cell_format':'cif',
+        'tag_config':False
+        }
+    
+    elif file_format == 'cif' and command == 'c':
+        prefix = file_name
+        path_parent = str(path_file.parent)
+        path_config = os.path.join(path_parent, prefix+'_config.db')
+
+        assert os.path.isfile(path_config), 'Config file not found' 
+        assert ver_finish_stage( stage = 'database', 
+                                 database = path_config), 'Config entrance corrupted'
+        print('Check: Database file found')
+
+        input_info = {
+        'prefix': file_name,
+        'cell_file': file_path,
+        'cell_format': 'cif',
+        'tag_config':True,
+        'config_dir': path_parent,
+        'config_file': path_config,
+        'config_name': prefix+'_config.db'
+        }
+
+    elif file_format == 'db':
         
         assert file_name.find('_config') != -1, 'Config entrance must be a database'
+        assert ver_finish_stage( stage = 'database', 
+                                 database = file_path), 'Config entrance corrupted'
+        print('Check: Database file found')
         
         prefix = file_name.replace('_config','')
         path_parent = str(path_file.parent)
@@ -67,25 +98,18 @@ def get_input_data():
 
         input_info = {
         'prefix': prefix,
-        'file_dir': path_structure,
-        'file_format':'cif',
+        'cell_file': path_structure,
+        'cell_format':'cif',
         'tag_config':True,
-        'config_dir': file_dir,
+        'config_dir': path_parent,
+        'config_file': file_path,
         'config_name':file_name + '.db'
         }
-            
-    elif file_format == 'cif':
-        input_info = {
-        'prefix': file_name,
-        'file_dir': file_dir,
-        'file_format':'cif',
-        'tag_config':False
-        }
-    
+                   
     else:
         raise AssertionError('Input file with incompatible format')
     
-    input_info.update({'op_mode':command})    
+    input_info.update({'op_mode':command})
 
     return input_info
 
@@ -141,46 +165,113 @@ def mk_work_environment(input_info):
     #  @return: 
 
     prefix = input_info.get('prefix')
+    test_config = input_info.get('tag_config')
     op_mode = input_info.get('op_mode')
+    current_path = os.getcwd()
+    new_dir = False
 
-    old_path = os.getcwd()
-    new_path = os.path.join(old_path, prefix)
+    if test_config and op_mode == 'c': 
+        work_path = input_info.get('config_dir')
 
-    if op_mode == 'n':
-        new_path = ver_path_exist(new_path)
-    elif op_mode == 'w':
-        exist = os.path.exists(new_path)
-        if exist == True:
-            shutil.rmtree(new_path)
-    elif op_mode == 'c':
-        new_path = ver_path_exist(new_path)
+    elif test_config and op_mode == 'n': 
+        work_path = os.path.join(current_path, prefix)
+        work_path = ver_path_exist(work_path)
+        new_dir = True
 
+    elif test_config and op_mode == 'w': 
+        work_path = input_info.get('config_dir')
+
+    elif not(test_config) and op_mode == 'c': 
+        work_path = input_info.get('config_dir')
+
+    elif not(test_config) and op_mode == 'n': 
+        work_path = os.path.join(current_path, prefix)
+        work_path = ver_path_exist(work_path)
+        new_dir = True
+
+    elif not(test_config) and op_mode == 'w': #novo calculo, sobrescrever diretorio se existir
+        #problema: entrar com o cif do diretório a ser deletado!
+        work_path = os.path.join(current_path, prefix)
+        exist = os.path.exists(work_path)
+        if not exist:
+            new_dir = True
+        #if exist == True:
+        #    shutil.rmtree(work_path)
 
     dir_names = ['calc_dir', 'out_dir', 'input_dir']
     dir_info = {}
     for name in dir_names:
-        path = os.path.join(new_path, name)
+        path = os.path.join(work_path, name)
         dir_info.update({name:path})
-        os.makedirs(path)
-    dir_info.update({'work_dir':new_path})
+        if new_dir:
+            os.makedirs(path)
+    dir_info.update({'config_dir':work_path})
 
-    os.chdir(new_path)
+    os.chdir(work_path)
 
     return dir_info
+##----------------------------------------------------------------------------##
+def finish_stage (stage, database):
 
+    #Verifica se está no diretório do banco de dados e faz a alteração
+    
+    curent_dir = os.getcwd()
+    dir_name = os.path.basename(curent_dir)
+    if dir_name.find('_dir') > -1:
+        work_dir = os.path.dirname(curent_dir)
+        os.chdir(work_dir)
+
+    db = pk.load(database, False)
+    db.dadd('calc_stage', (stage, True))
+    db.dump()
+    
+    os.chdir(curent_dir)
+
+    return 
+##----------------------------------------------------------------------------##
+def ver_finish_stage (stage, database):
+
+    curent_dir = os.getcwd()
+    dir_name = os.path.basename(curent_dir)
+    if dir_name.find('_dir') > -1:
+        new_dir = os.path.dirname(curent_dir)
+        os.chdir(new_dir)
+
+    db = pk.load(database, False)
+    test = db.dget('calc_stage', stage)
+    db.dump()
+    
+    os.chdir(curent_dir)
+
+    return test
 ##----------------------------------------------------------------------------##
 def construct_database(input_info, dir_info):
 
     test_config = input_info.get('tag_config')
-    if test_config:
+    op_mode = input_info.get('op_mode')
+
+    if op_mode == 'c': 
+        database = input_info.get('config_name')
+        return database
+
+    elif test_config and op_mode == 'n': 
         database = copy_data_base(input_info = input_info)
-    else:
+
+    elif test_config and op_mode == 'w':
+        database = input_info.get('config_name')
+
+    elif not(test_config) and op_mode == 'n': 
+        database = mk_data_base(input_info = input_info)
+        
+    elif not(test_config) and op_mode == 'w': 
         database = mk_data_base(input_info = input_info)
 
     set_dir_info(dir_info = dir_info, database = database)
+    set_calc_stage (database = database)
+    finish_stage (stage = 'database', database = database)
 
-    #set_operation_mode(input_info = input_info, database = database)
-    
+    print('Check: Database fineshed')
+
     return database
 ##----------------------------------------------------------------------------##
 
@@ -216,7 +307,7 @@ def mk_data_base(input_info):
         print('Check: Pseudopotentials found')
 
     set_program_parameters(prefix = prefix, database = database)
-
+    
     return database
 
 ##----------------------------------------------------------------------------##
@@ -226,14 +317,14 @@ def copy_data_base(input_info):
     #
     #  @param:  
     #  @return:
-    
+
     database = input_info.get('config_name')
-    config_dir = input_info.get('config_dir')
+    config_file = input_info.get('config_file')
     current_path = os.getcwd()
 
     # adding exception handling
     try:
-        shutil.copy(config_dir, current_path)
+        shutil.copy(config_file, current_path)
     except IOError as e:
         print('Unable to copy config.db file. %s' % e)
         raise
@@ -241,15 +332,16 @@ def copy_data_base(input_info):
         print('Unexpected error:', sys.exc_info())
         raise
     else: 
-        print('Check: Database file found')
-    
+        print('Check: Database file copied')
+
+    set_cell_structure(input_info = input_info, database = database)
+
     return database
 
 ##----------------------------------------------------------------------------##
-def set_cell_structure(input_info, database):
+def copy_cell_structure(input_info):
 
-    file_dir = input_info.get('file_dir')
-    file_format = input_info.get('file_format')
+    file_dir = input_info.get('cell_file')
 
     current_path = os.getcwd()
 
@@ -265,6 +357,13 @@ def set_cell_structure(input_info, database):
     
     print('Check: Cell structure file found')
     
+    return file_path
+##----------------------------------------------------------------------------##
+def set_cell_structure(input_info, database):
+
+    file_format = input_info.get('cell_format')
+    file_path = copy_cell_structure(input_info = input_info)
+
     db = pk.load(database, False)
 
     #Cell structures information
@@ -276,12 +375,13 @@ def set_cell_structure(input_info, database):
     
     return
 ##----------------------------------------------------------------------------##
+
 def set_dir_info (dir_info, database):
 
     calc_dir = dir_info.get('calc_dir')
     out_dir = dir_info.get('out_dir')
     input_dir = dir_info.get('input_dir')
-    work_dir = dir_info.get('work_dir')
+    work_dir = dir_info.get('config_dir')
 
     db = pk.load(database, False)
 
@@ -289,12 +389,35 @@ def set_dir_info (dir_info, database):
     db.dadd('dir',('calc_dir',calc_dir) )
     db.dadd('dir',('out_dir',out_dir) )
     db.dadd('dir',('input_dir',input_dir) )
-    db.dadd('dir',('work_dir',work_dir) )
+    db.dadd('dir',('config_dir',work_dir) )
 
     db.dump()
 
     return
+##----------------------------------------------------------------------------##
+def set_calc_stage (database):
 
+    db = pk.load(database, False)
+
+    #Calculation stage
+    db.dcreate('calc_stage')
+    db.dadd('calc_stage',('database', False ))
+    db.dadd('calc_stage',('w_scf1', False ))
+    db.dadd('calc_stage',('w_scf2', False))
+    db.dadd('calc_stage',('w_ph', False))
+    db.dadd('calc_stage',('w_q2r', False))
+    db.dadd('calc_stage',('w_matdyn', False))
+    db.dadd('calc_stage',('w_lambda', False))
+    db.dadd('calc_stage',('r_scf1', False ))
+    db.dadd('calc_stage',('r_scf2', False))
+    db.dadd('calc_stage',('r_ph', False))
+    db.dadd('calc_stage',('r_q2r', False))
+    db.dadd('calc_stage',('r_matdyn', False))
+    db.dadd('calc_stage',('r_lambda', False))
+
+    db.dump()
+
+    return
 ##----------------------------------------------------------------------------##
 def set_fixed_values(prefix, database):
 
@@ -605,7 +728,7 @@ def write_espresso_in_pw ():
     pseudo = db.dgetall('pseudo_pw')
     pw_parameters = db.dgetall('pw_par')
     input_dir = db.dget('dir', 'input_dir')
-    work_dir = db.dget('dir', 'work_dir')
+    work_dir = db.dget('dir', 'config_dir')
     #scf1
     kgrid1 = db.dget('grids','kdense_div')
     koffset1 = db.dget('grids','kdense_off')
@@ -619,29 +742,39 @@ def write_espresso_in_pw ():
     os.chdir(input_dir)
 
     #make scf1 input QE file
-    ase.io.write(filename = file_name1,
-                images = structure,
-                format = 'espresso-in',
-                input_data = pw_parameters,
-                pseudopotentials = pseudo,
-                kpts = kgrid1,
-                koffset = koffset1)
 
-    add_parameter_qe(file_dir = file_name1, 
-                    parameter = ('la2F','.true.'), 
-                    section = 'system')
+    if (not ver_finish_stage(stage = 'w_scf1', database = _DATABASE)):
+        ase.io.write(filename = file_name1,
+                    images = structure,
+                    format = 'espresso-in',
+                    input_data = pw_parameters,
+                    pseudopotentials = pseudo,
+                    kpts = kgrid1,
+                    koffset = koffset1)
 
-    #make scf2 input QE file
-    ase.io.write(filename = file_name2,
-                images = structure,
-                format = 'espresso-in',
-                input_data = pw_parameters,
-                pseudopotentials = pseudo,
-                kpts = kgrid2,
-                koffset = koffset2)    
+        add_parameter_qe(file_dir = file_name1, 
+                        parameter = ('la2F','.true.'), 
+                        section = 'system')
+
+        finish_stage(stage = 'w_scf1', database = _DATABASE)
+    else:
+        print('input scf1 found!')
+
+    if (not ver_finish_stage(stage = 'w_scf2', database = _DATABASE)):
+        ase.io.write(filename = file_name2,
+                    images = structure,
+                    format = 'espresso-in',
+                    input_data = pw_parameters,
+                    pseudopotentials = pseudo,
+                    kpts = kgrid2,
+                    koffset = koffset2)
+
+        finish_stage(stage = 'w_scf2', database = _DATABASE) 
+    else:
+        print('input scf2 found!')
 
     #return work directory    
-    os.chdir(work_dir)  
+    os.chdir(work_dir)
 
     return
 ##----------------------------------------------------------------------------##
@@ -657,6 +790,11 @@ def write_espresso_in(program):
     #                     written. Vslues possible: 'ph', 'matdyn', 'q2r'. 
     #  @return: no return.
     
+    if ver_finish_stage(stage = 'w_'+program, database = _DATABASE):
+        text = 'input {program_txt} found!'
+        print(text.format(program_txt = program))
+        return
+
     qe_dict = program + '_par'
    
     #get data from database
@@ -668,7 +806,7 @@ def write_espresso_in(program):
     file_order = db.dget('file_order', program)
     file_name = db.dget('input_name', program)
     input_dir = db.dget('dir', 'input_dir')
-    work_dir = db.dget('dir', 'work_dir')
+    work_dir = db.dget('dir', 'config_dir')
 
     #set work directory  
     os.chdir(input_dir)
@@ -685,6 +823,8 @@ def write_espresso_in(program):
                         parameter = (key,value), 
                         section = section_name) 
 
+    finish_stage(stage = 'w_'+program, database = _DATABASE) 
+
     #return work directory    
     os.chdir(work_dir)  
 
@@ -692,6 +832,11 @@ def write_espresso_in(program):
 ##----------------------------------------------------------------------------##
 
 def run_espresso_in(program):
+
+    if ver_finish_stage(stage = 'r_'+program, database = _DATABASE):
+        text = '{program_txt} previously run!'
+        print(text.format(program_txt = program))
+        return
 
     # Run espresso_in file
     # 
@@ -703,7 +848,7 @@ def run_espresso_in(program):
     db = pk.load(_DATABASE, False)
     
     input_dir = db.dget('dir', 'input_dir')
-    work_dir = db.dget('dir', 'work_dir')
+    work_dir = db.dget('dir', 'config_dir')
     calc_dir = db.dget('dir', 'calc_dir')
     out_dir = db.dget('dir', 'out_dir')   
     dir_qe = str(db.dget('dir','qe_programs'))    
@@ -761,10 +906,12 @@ def run_espresso_in(program):
             f.write(str(process.stdout))
         text = '{program_txt} fineshed! :D'
         print(text.format(program_txt = program))
+        
+        finish_stage(stage = 'r_'+program, database = _DATABASE) 
 
     #return work directory    
     os.chdir(work_dir)
-
+    
     return 
 ##----------------------------------------------------------------------------##
 
@@ -810,6 +957,10 @@ def get_upper_freq(dyn_files):
 
 def write_espresso_in_lambda():
 
+    if ver_finish_stage(stage = 'w_lambda', database = _DATABASE):
+        print('\nlambda.in file found!')
+        return
+
     # Write espresso_in lambda file
     # 
     # - Load data from database 
@@ -829,7 +980,7 @@ def write_espresso_in_lambda():
     prefix = db.dget('pw_par','prefix')
     calc_dir = db.dget('dir', 'calc_dir')
     input_dir = db.dget('dir', 'input_dir')
-    work_dir = db.dget('dir', 'work_dir')
+    work_dir = db.dget('dir', 'config_dir')
     
     #set work directory    
     os.chdir(calc_dir)
@@ -882,6 +1033,8 @@ def write_espresso_in_lambda():
     with open(input_name, 'w') as f:     
         for line in lambda_info:
             f.write(line)
+
+    finish_stage(stage = 'w_lambda', database = _DATABASE)
 
     print('\nlambda.in file wrote!')
 
