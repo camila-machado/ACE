@@ -54,7 +54,7 @@ $ chmod +x program.py
 $ chmod +x write.py
 
 #-------------------------------------------------------------------------------
-#New features v-2.3:
+#New features v-2.4:
 
-#-> Implement operation mode: 'c' -continue
-#-> Solve incompatibilities between input format and certain commmands
+#-> Allows to use the variable 'recover' in ph.x program, however there is a bug
+in usage of recover = .true.

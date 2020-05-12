@@ -169,6 +169,7 @@ def mk_work_environment(input_info):
     op_mode = input_info.get('op_mode')
     current_path = os.getcwd()
     new_dir = False
+    flush_dir = False
 
     if test_config and op_mode == 'c': 
         work_path = input_info.get('config_dir')
@@ -180,6 +181,7 @@ def mk_work_environment(input_info):
 
     elif test_config and op_mode == 'w': 
         work_path = input_info.get('config_dir')
+        flush_dir = True
 
     elif not(test_config) and op_mode == 'c': 
         work_path = input_info.get('config_dir')
@@ -189,15 +191,14 @@ def mk_work_environment(input_info):
         work_path = ver_path_exist(work_path)
         new_dir = True
 
-    elif not(test_config) and op_mode == 'w': #novo calculo, sobrescrever diretorio se existir
-        #problema: entrar com o cif do diretório a ser deletado!
+    elif not(test_config) and op_mode == 'w': 
         work_path = os.path.join(current_path, prefix)
         exist = os.path.exists(work_path)
-        if not exist:
+        if exist:
+            flush_dir = True
+        else:
             new_dir = True
-        #if exist == True:
-        #    shutil.rmtree(work_path)
-
+ 
     dir_names = ['calc_dir', 'out_dir', 'input_dir']
     dir_info = {}
     for name in dir_names:
@@ -205,6 +206,10 @@ def mk_work_environment(input_info):
         dir_info.update({name:path})
         if new_dir:
             os.makedirs(path)
+        elif flush_dir:
+            shutil.rmtree(path)
+            os.makedirs(path)
+
     dir_info.update({'config_dir':work_path})
 
     os.chdir(work_path)
@@ -348,6 +353,8 @@ def copy_cell_structure(input_info):
     # adding exception handling
     try:
         file_path = shutil.copy(file_dir, current_path)
+    except shutil.SameFileError as e:
+        file_path =  os.path.join(current_path, os.path.basename(file_dir))
     except IOError as e:
         print('Unable to copy cell structure file. %s' % e)
         raise
@@ -448,7 +455,7 @@ def set_fixed_values(prefix, database):
             'smearing','degauss','ecutwfc','ecutrho','conv_thr']))
     db.dadd('file_order',('ph',[
             'prefix', 'outdir', 'tr2_ph', 'fildyn','ldisp', 'nq1',
-            'nq2', 'nq3', 'electron_phonon','fildvscf', 'el_ph_sigma', 
+            'nq2', 'nq3', 'electron_phonon','fildvscf','recover', 'el_ph_sigma', 
             'el_ph_nsigma']))
     db.dadd('file_order',('q2r',[
             'zasr', 'fildyn', 'flfrc', 'la2F']))
@@ -772,6 +779,8 @@ def write_espresso_in_pw ():
         finish_stage(stage = 'w_scf2', database = _DATABASE) 
     else:
         print('input scf2 found!')
+    
+    print('write scf!!')
 
     #return work directory    
     os.chdir(work_dir)
@@ -824,7 +833,7 @@ def write_espresso_in(program):
                         section = section_name) 
 
     finish_stage(stage = 'w_'+program, database = _DATABASE) 
-
+    
     #return work directory    
     os.chdir(work_dir)  
 

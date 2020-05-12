@@ -60,6 +60,7 @@ db.dcreate ('ph_par')
 
 db.dadd('ph_par',('tr2_ph',1e-12) )
 db.dadd('ph_par',('ldisp','.true.') )
+db.dadd('ph_par',('recover','.false.') )
 db.dadd('ph_par',('nq1',3) )
 db.dadd('ph_par',('nq2',3) )
 db.dadd('ph_par',('nq3',3) )
