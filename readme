@@ -56,5 +56,5 @@ $ chmod +x write.py
 #-------------------------------------------------------------------------------
 #New features v-2.4:
 
-#-> Allows to use the variable 'recover' in ph.x program, however there is a bug
-in usage of recover = .true.
+#-> Allows to use the variable 'recover' in ph.x program, however the calculation 
+must have been properly interrupted accordingly to Phonon program manual.
