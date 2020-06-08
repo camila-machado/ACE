@@ -27,16 +27,29 @@ db = pk.load(_DATABASE, False)
 ##------------------------------------------------------------------------------
 
 #opcional: caso os programas do quantum-espresso não estejam no $PATH do Linux
-#dir - 
+#qe - 
 db.dcreate ('dir')
-db.dadd('dir',('qe_programs','') )
-db.dadd('dir',('pseudo_folder','/home/camila/Documentos/EMA/Program-TC/pseudo') )
+
+db.dcreate ('qe')
+db.dadd('qe',('qe_programs','') )
+
+#pseudo
+db.dcreate('pseudo')
+db.dadd('pseudo',('pseudo_folder','/home/camila/Documentos/EMA/Program-TC/pseudo') )
 
 #mpi - 
 db.dcreate ('mpi')
 
 db.dadd('mpi',('np',4) )
 db.dadd('mpi',('nk',4) )
+
+#grids
+db.dcreate ('grids')
+
+db.dadd('grids',('coarse_div',(9,9,9)) )
+db.dadd('grids',('coarse_off',(0,0,0)) )
+db.dadd('grids',('dense_div',(18,18,18)) )
+db.dadd('grids',('dense_off',(0,0,0)) )
 
 #qe_pw_par - entrada da funcao ase.write
 db.dcreate ('pw_par')
@@ -46,14 +59,6 @@ db.dadd('pw_par',('occupations','smearing') )
 db.dadd('pw_par',('smearing','marzari-vanderbilt') )
 db.dadd('pw_par',('degauss',0.05) )
 db.dadd('pw_par',('conv_thr',1e-10) )
-
-#grids
-db.dcreate ('grids')
-
-db.dadd('grids',('kcoarse_div',(9,9,9)) )
-db.dadd('grids',('kcoarse_off',(0,0,0)) )
-db.dadd('grids',('kdense_div',(18,18,18)) )
-db.dadd('grids',('kdense_off',(0,0,0)) )
 
 #qe_ph_par
 db.dcreate ('ph_par')

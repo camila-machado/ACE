@@ -49,12 +49,14 @@ or
 add the command lines to the .bashrc file for permanet solution, and run:
 $ souce .bashrc (to execut alterations and make them valid)
 
-(**) Run the command:
+(**) Run the commands:
 $ chmod +x program.py
 $ chmod +x write.py
 
 #-------------------------------------------------------------------------------
-#New features v-2.4:
+#New features v-3.0:
 
-#-> Allows to use the variable 'recover' in ph.x program, however the calculation 
-must have been properly interrupted accordingly to Phonon program manual.
+#-> New program design using classes: 
+#   -more robust; 
+#   -less redundancy;  
+#   -better code reuse.
