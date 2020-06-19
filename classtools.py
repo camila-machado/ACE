@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# File classtools.py (new)
+# File classtools.py
 # "Assorted class utilities and tools"
 
 class AttrDisplay:    

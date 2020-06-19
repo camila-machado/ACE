@@ -1,3 +1,20 @@
+"""
+##------------------------------------------------------------------------------
+# CNPEM - National Brazilian Center for Research in Energy and Materials
+# Sirius - Research Group EMA
+#
+# Code project: TC_caculus
+# 
+# Objectif:
+# Automate the use of Quantum Espresso (QE) for the calculation of 
+# Superconductivity Critical Temperature (Tc) of diferent molecules and 
+# cell structures
+# 
+##------------------------------------------------------------------------------
+
+This module provide class interfaces for quantum espresso programs
+"""
+
 from classtools import AttrDisplay
 from pathlib import PurePath
 import ase
@@ -9,6 +26,11 @@ import pickledb as pk
 import subprocess
         
 class Mpi(AttrDisplay):
+    """
+
+    This class gather information to run quantum espresso programs  
+    with parallel version
+    """
     db_dict = 'mpi'
 
     def __init__(self, np = 1, nk = 1): 
@@ -30,6 +52,11 @@ class Mpi(AttrDisplay):
         db.dump()
 
 class File(AttrDisplay):
+    """
+    
+    This class provide file interface used to manage database and
+    structures files 
+    """
     db_dict = 'file'
 
     def __init__(self, file_in):
@@ -38,12 +65,13 @@ class File(AttrDisplay):
         self.name = self.path.stem
         self.format = self.path.suffix.strip('.')
         self.dir = str(self.path.parent)
+        print(self.path)
         assert os.path.isfile(self.path), 'This is not a file directory'
 
     def load(self, database):
         db = pk.load(database, False)
-        cell_file = db.dget(self.db_dict,'dir')
-        self.setFile(cell_file = cell_file)
+        file_in = db.dget(self.db_dict,'dir')
+        self.__init__(file_in = file_in)
 
     def dump(self, database):
         db = pk.load(database, False)
@@ -53,6 +81,12 @@ class File(AttrDisplay):
         db.dump()
 
     def copyFile(self):
+        """
+
+        This function copies the file represented by the File object 
+        to the current work path and atualize the File object information
+        accordinly with teh path of the copied file.
+        """
         current_path = os.getcwd()
         try:
             new_file = shutil.copy(self.file, current_path)
@@ -71,6 +105,11 @@ class File(AttrDisplay):
             self.__init__(new_file)    
 
 class CellStructure(File):
+    """
+    
+    This class provides an interface for cell structure .cif files,
+    easily reaching information useful for quantum espresso programs
+    """
     db_dict = 'cell_structure'
 
     def __init__(self, file_str = ''):
@@ -89,6 +128,10 @@ class CellStructure(File):
         File.copyFile(self)
 
 class Database(File):
+    """
+    
+    This class provides an interface for database .db files
+    """
     def __init__(self, file_str = ''):
         File.__init__(self, file_str)
         assert self.format == 'db', 'Database file must be .db'
@@ -130,7 +173,7 @@ class Pseudo(AttrDisplay):
         return pseudo_dict
             
 class Grid(AttrDisplay):
-    db_dict = 'grids'
+    db_dict = 'grid'
 
     def __init__(self, name, div = (0,0,0), off = (0,0,0)):
         self.name = name
@@ -140,12 +183,12 @@ class Grid(AttrDisplay):
     def load(self, database):
         db = pk.load( database, False)
         self.div = tuple(db.dget(self.db_dict, self.name+'_div')) 
-        self.off = tuple(db.dget(self.db_dict, self.name+'_off'))  
+        self.off = tuple(db.dget(self.db_dict, self.name+'_off'))
 
     def dump(self, database):
         db = pk.load(database, False)
-        db.dadd(self.db_dict,(self.name+'_div', self.dense_div))
-        db.dadd(self.db_dict,(self.name+'_off', self.coarse_off))
+        db.dadd(self.db_dict,(self.name+'_div', self.div))
+        db.dadd(self.db_dict,(self.name+'_off', self.off))
         db.dump()
 
 class Program(AttrDisplay):
@@ -162,7 +205,6 @@ class Program(AttrDisplay):
         self.db_dict = self.program.replace('.x','_par')
         self.input =  prefix + '.' + self.name + '.in'
         self.output =  prefix + '.' + self.name + '.out'
-        self.calc = ''
         self.parameters = {}
         self._setParameters(prefix)
 
@@ -335,7 +377,13 @@ class Phonon (Program):
                   'nq2', 'nq3', 'electron_phonon','fildvscf','recover', 'el_ph_sigma', 
                   'el_ph_nsigma']
     section = 'inputph'
-        
+
+    def __init__(self, prefix, grid):
+        Program.__init__(self, prefix= prefix)
+        self.parameters.update({'nq1': grid.div[0]})
+        self.parameters.update({'nq2': grid.div[1]})
+        self.parameters.update({'nq3': grid.div[2]})
+
     def _setParameters(self, prefix):
         self.parameters.update({'prefix': prefix})
         self.parameters.update({'outdir': './out'})
@@ -468,21 +516,22 @@ class Lambda (Program):
 
 if __name__ == '__main__':    
     
-    database = '/home/camila/Documentos/EMA/Program-TC/teste/fooNb_config.db'
-    prefix = 'fooNb'
-    cell = CellStructure('/home/camila/Documentos/EMA/Program-TC/cif_database/Nb.cif')
-    
+    database = '/home/camila/Documentos/EMA/Program-TC/H3S-200GPa/H3S-200GPa_config.db'
+    prefix = 'H3S'
+    cell = CellStructure('/home/camila/Documentos/EMA/Program-TC/cif_database/H3S-200GPa.cif')
+
     mpi    = Mpi()
     pseudo = Pseudo()
     grid1  = Grid('dense')
     grid2  = Grid('coarse')
+    qgrid = Grid('qpoints')
 
-    for obj in [pseudo, grid1, grid2, mpi]:
+    for obj in [pseudo, grid1, grid2, qgrid, mpi]:
         obj.load(database= database)
 
     pw1    = Pwscf(prefix= prefix, grid= grid1, cell= cell, pseudo= pseudo)
     pw2    = Pwscf2(prefix= prefix, grid= grid2, cell= cell, pseudo= pseudo)
-    ph     = Phonon(prefix= prefix)
+    ph     = Phonon(prefix= prefix, grid= qgrid)
     q2r    = Q2r(prefix= prefix)
     matdyn = Matdyn(prefix= prefix)
     lamb   = Lambda(prefix=prefix)
