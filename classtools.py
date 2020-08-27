@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# File classtools.py (new)
+# File classtools.py
 # "Assorted class utilities and tools"
 
 class AttrDisplay:    
@@ -18,7 +18,7 @@ class AttrDisplay:
         return ', '.join(attrs)
     def __str__(self):        
         return '[%s: %s]' % (self.__class__.__name__, self.gatherAttrs())
-        
+
 if __name__ == '__main__':    
     
     class TopTest(AttrDisplay):        

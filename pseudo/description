@@ -1,0 +1,8 @@
+PSEUSDOPOTENTIALS
+
+Pseudopotential type: PAW or USPP
+Functional type: PBE
+Scalar relativistic
+
+source: https://www.quantum-espresso.org/pseudopotentials
+date: august 20, 2020

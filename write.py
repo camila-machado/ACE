@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+"""
 ##------------------------------------------------------------------------------
 # CNPEM - National Brazilian Center for Research in Energy and Materials
 # Sirius - Research Group EMA
@@ -7,51 +7,58 @@
 # Code project: TC_caculus
 # 
 # Objectif:
-# Automate the use of Quantum Espresso (QE) for the calculus of 
+# Automate the use of Quantum Espresso (QE) for the calculation of 
 # Superconductivity Critical Temperature (Tc) of diferent molecules and 
 # cell structures
 # 
 ##------------------------------------------------------------------------------
 
-#MODULES
+This program creates a database .db file
+spatially designed to provide all information needed by 
+quantum espresso programs to calculate the critical 
+superocnductivity temperature of a material
+"""
+
 import pickledb as pk
 import sys
 
-#user input
+#database name is given as input
 _DATABASE = sys.argv[1]
 
-#create database
 db = pk.load(_DATABASE, False)
 
-#------------------Dicionarios de Dados------------------#
-##------------------------------------------------------------------------------
-
-#opcional: caso os programas do quantum-espresso não estejam no $PATH do Linux
-#qe - 
-db.dcreate ('dir')
-
+#optional: in case quantum-espresso programs are not in linux $PATH
+#qe - quantum espresso programs' path
 db.dcreate ('qe')
 db.dadd('qe',('qe_programs','') )
 
-#pseudo
+#pseudo - pseudo potentials' folder path
 db.dcreate('pseudo')
-db.dadd('pseudo',('pseudo_folder','/home/camila/Documentos/EMA/Program-TC/pseudo') )
+db.dadd('pseudo',('pseudo_folder','/home/camila/Documentos/EMA/Program-TC/pseudo/USPP') )
 
-#mpi - 
+#mpi - parallen running description
 db.dcreate ('mpi')
 
 db.dadd('mpi',('np',4) )
 db.dadd('mpi',('nk',4) )
 
-#grids
+#grids - points distance used to calculate grids for scf and phonons calculations
 db.dcreate ('grids')
 
-db.dadd('grids',('coarse_div',(9,9,9)) )
-db.dadd('grids',('coarse_off',(0,0,0)) )
-db.dadd('grids',('dense_div',(18,18,18)) )
-db.dadd('grids',('dense_off',(0,0,0)) )
+db.dadd('grids',('kdistance', 0.3) ) #distance in angstrons of two consecutive grid k-points
+db.dadd('grids',('qdistance', 0.9) ) #distance in angstrons of two consecutive grid q-points
+db.dadd('grids',('calc', 1) ) #habilitate the calculation from reciprocal vector
 
-#qe_pw_par - entrada da funcao ase.write
+#grids - grids used in scf and phonons calculations
+db.dcreate('grid')
+db.dadd('grid',('coarse_div',(9,9,9)) )
+db.dadd('grid',('coarse_off',(0,0,0)) )
+db.dadd('grid',('qpoints_div',(3,3,3)) )
+db.dadd('grid',('qpoints_off',(0,0,0)) )
+db.dadd('grid',('dense_div',(18,18,18)) )
+db.dadd('grid',('dense_off',(0,0,0)) )
+
+#Quantum-espresso programs' parameters:
 db.dcreate ('pw_par')
 
 db.dadd('pw_par',('restart_mode','from_scratch') )
@@ -60,26 +67,20 @@ db.dadd('pw_par',('smearing','marzari-vanderbilt') )
 db.dadd('pw_par',('degauss',0.05) )
 db.dadd('pw_par',('conv_thr',1e-10) )
 
-#qe_ph_par
 db.dcreate ('ph_par')
 
 db.dadd('ph_par',('tr2_ph',1e-12) )
 db.dadd('ph_par',('ldisp','.true.') )
 db.dadd('ph_par',('recover','.false.') )
-db.dadd('ph_par',('nq1',3) )
-db.dadd('ph_par',('nq2',3) )
-db.dadd('ph_par',('nq3',3) )
 db.dadd('ph_par',('electron_phonon','interpolated') )
 db.dadd('ph_par',('el_ph_sigma',0.005) )
 db.dadd('ph_par',('el_ph_nsigma',10) )
 
-#qe_q2r_par
 db.dcreate ('q2r_par')
 
 db.dadd('q2r_par',('zasr','simple') )
 db.dadd('q2r_par',('la2F','.true.') )
 
-#qe_matdyn_par
 db.dcreate ('matdyn_par')
 
 db.dadd('matdyn_par',('asr','simple') )
@@ -90,11 +91,9 @@ db.dadd('matdyn_par',('nk2',10) )
 db.dadd('matdyn_par',('nk3',10) )
 db.dadd('matdyn_par',('ndos',50) )
 
-#qe_lambda_par
 db.dcreate ('lambda_par')
 
 db.dadd('lambda_par',('sigma_omega', 0.12 ) )
 db.dadd('lambda_par',('mu',0.16) )
 
-#Escrever dados
 db.dump()
