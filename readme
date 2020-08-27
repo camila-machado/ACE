@@ -30,10 +30,12 @@ $ program.py <directory/input_file> <command>
           previous calculation
     'c' - (continue) continue a calculation interrupted after some steps  
 
-obs1: The original '.cif' file must be in the directory of the 'config.db' 
-      input file in order for this input work
-obs2: Command is optional
-obs3: The default operation mode is 'n' (new)
+obs1: In order for the 'config.db' file work as input, the original '.cif' file 
+      must be in the same directory.
+obs2: In order for the '.cif' file work with 'continue' command, the 'config.db' file 
+      must be in the same directory.
+obs3: Command is optional
+obs4: The default operation mode is 'n' (new)
 
 #Enjoy your TC's!!!
 
@@ -54,9 +56,10 @@ $ chmod +x program.py
 $ chmod +x write.py
 
 #-------------------------------------------------------------------------------
-#New features v-3.0:
+#New features v-3.1:
 
-#-> New program design using classes: 
-#   -more robust; 
-#   -less redundancy;  
-#   -better code reuse.
+#-> Allows to differente entrances for grids:
+#    - fixed values directly used in the QE input files
+#    - k-points distance and q-points distance values in angstron. Grid values 
+#      are calculated proportionaly to the reciprocal vectors module.
+#

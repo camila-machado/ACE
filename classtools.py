@@ -18,7 +18,7 @@ class AttrDisplay:
         return ', '.join(attrs)
     def __str__(self):        
         return '[%s: %s]' % (self.__class__.__name__, self.gatherAttrs())
-        
+
 if __name__ == '__main__':    
     
     class TopTest(AttrDisplay):        

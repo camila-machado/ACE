@@ -34,7 +34,7 @@ db.dadd('qe',('qe_programs','') )
 
 #pseudo - pseudo potentials' folder path
 db.dcreate('pseudo')
-db.dadd('pseudo',('pseudo_folder','/home/camila/Documentos/EMA/Program-TC/pseudo') )
+db.dadd('pseudo',('pseudo_folder','/home/camila/Documentos/EMA/Program-TC/pseudo/USPP') )
 
 #mpi - parallen running description
 db.dcreate ('mpi')
@@ -42,20 +42,21 @@ db.dcreate ('mpi')
 db.dadd('mpi',('np',4) )
 db.dadd('mpi',('nk',4) )
 
-#grids - k-points grids used in scf calculations
+#grids - points distance used to calculate grids for scf and phonons calculations
 db.dcreate ('grids')
 
-db.dadd('grids',('kdistance', 0.2) ) #distance in angstrons of two consecutive grid k-points
-db.dadd('grids',('qdistance', 0.6) ) #distance in angstrons of two consecutive grid q-points
+db.dadd('grids',('kdistance', 0.3) ) #distance in angstrons of two consecutive grid k-points
+db.dadd('grids',('qdistance', 0.9) ) #distance in angstrons of two consecutive grid q-points
+db.dadd('grids',('calc', 1) ) #habilitate the calculation from reciprocal vector
 
 #grids - grids used in scf and phonons calculations
 db.dcreate('grid')
 db.dadd('grid',('coarse_div',(9,9,9)) )
 db.dadd('grid',('coarse_off',(0,0,0)) )
-db.dadd('grid',('dense_div',(18,18,18)) )
-db.dadd('grid',('dense_off',(0,0,0)) )
 db.dadd('grid',('qpoints_div',(3,3,3)) )
 db.dadd('grid',('qpoints_off',(0,0,0)) )
+db.dadd('grid',('dense_div',(18,18,18)) )
+db.dadd('grid',('dense_off',(0,0,0)) )
 
 #Quantum-espresso programs' parameters:
 db.dcreate ('pw_par')

@@ -44,11 +44,9 @@ class Mpi(AttrDisplay):
     
     def dump(self, database):
         db = pk.load(database, False)
-
         db.dcreate (self.database)
         db.dadd(self.db_dict,('np', self.np) )
         db.dadd(self.db_dict,('nk', self.nk) )
-
         db.dump()
 
 class File(AttrDisplay):
@@ -57,35 +55,21 @@ class File(AttrDisplay):
     This class provide file interface used to manage database and
     structures files 
     """
-    db_dict = 'file'
-
+    
     def __init__(self, file_in):
         self.path = PurePath(file_in)
         self.file = str(self.path)
         self.name = self.path.stem
         self.format = self.path.suffix.strip('.')
         self.dir = str(self.path.parent)
-        print(self.path)
         assert os.path.isfile(self.path), 'This is not a file directory'
-
-    def load(self, database):
-        db = pk.load(database, False)
-        file_in = db.dget(self.db_dict,'dir')
-        self.__init__(file_in = file_in)
-
-    def dump(self, database):
-        db = pk.load(database, False)
-
-        db.dcreate(db_dict)
-        db.dadd(self.db_dict,('dir', self.file) )
-        db.dump()
 
     def copyFile(self):
         """
 
         This function copies the file represented by the File object 
         to the current work path and atualize the File object information
-        accordinly with teh path of the copied file.
+        accordinly with the copied file new path.
         """
         current_path = os.getcwd()
         try:
@@ -146,7 +130,24 @@ class Pseudo(AttrDisplay):
 
     def __init__(self, folder = None):
         self.folder = folder
+        if self.folder:
+            self._setFiles()
     
+    def _setFiles(self):     
+        pseudo_files = os.listdir(self.folder)
+        self.files = {}
+        for file_name in pseudo_files:
+            element = file_name.split('.')[0]
+            self.files.update({element:file_name})
+    
+    def selectFiles (self, elements):
+        pseudo_dict = {}
+        elements = list( dict.fromkeys(elements) )#remove repeated
+        for element in elements:
+            pseudo_file = self.files.get(element)
+            pseudo_dict.update({element:pseudo_file})
+        return pseudo_dict
+
     def load (self, database):
         db = pk.load(database, False)
         self.folder = db.dget(self.db_dict,'pseudo_folder')
@@ -158,20 +159,7 @@ class Pseudo(AttrDisplay):
         db.dadd(self.db_dict,('pseudo_folder', self.folder))
         db.dump()
 
-    def _setFiles(self):     
-        pseudo_files = os.listdir(self.folder)
-        self.files = {}
-        for file_name in pseudo_files:
-            element = file_name.split('.')[0]
-            self.files.update({element:file_name})
-    
-    def selectFiles (self, elements):
-        pseudo_dict = {}
-        for element in elements:
-            pseudo_file = self.files.get(element)
-            pseudo_dict.update({element:pseudo_file})
-        return pseudo_dict
-            
+
 class Grid(AttrDisplay):
     db_dict = 'grid'
 
@@ -179,6 +167,10 @@ class Grid(AttrDisplay):
         self.name = name
         self.div = div
         self.off = off
+
+    def setGrid(self, div, off = (0,0,0)):
+        self.div = tuple(div)
+        self.off = tuple(off)
 
     def load(self, database):
         db = pk.load( database, False)
@@ -216,7 +208,7 @@ class Program(AttrDisplay):
         self.output = os.path.join(dir.output, self.output)
         self.calc = dir.calc
 
-    def command(self, mpi):
+    def _command(self, mpi):
         command = 'mpiexec' + ' -np ' + mpi.np + ' ' + self.program +' -nk ' + mpi.nk + ' -in ' + self.input
         return command
     
@@ -230,7 +222,7 @@ class Program(AttrDisplay):
             self.parameters.update({key: par.get(key)})
     
     def run(self, mpi):
-        command = self.command(mpi= mpi)
+        command = self._command(mpi= mpi)
 
         text = '\nrunning {program_txt}...'
         print(text.format(program_txt = self.program))
@@ -308,15 +300,14 @@ class Program(AttrDisplay):
         return position
 
 class Pwscf (Program):
-    name = 'scf1'
+    name = 'scf'
     program = 'pw.x'
     file_order = ['prefix','restart_mode','pseudo_dir','outdir','occupations',
-                  'smearing','degauss','ecutwfc','ecutrho','conv_thr']
+                 'smearing','degauss','ecutwfc','ecutrho','conv_thr']
     
     def __init__(self, prefix, pseudo, cell, grid):
         Program.__init__(self, prefix= prefix)
-        self.kgrid = grid.div
-        self.koffset = grid.off
+        self.grid = grid
         self.cell = cell
         self.pseudo = pseudo.selectFiles(cell.elements)
         self.parameters.update({'pseudo_dir': pseudo.folder})
@@ -359,17 +350,19 @@ class Pwscf (Program):
                      format = 'espresso-in',
                      input_data = self.parameters,
                      pseudopotentials = self.pseudo,
-                     kpts = self.kgrid,
-                     koffset = self.koffset)
+                     kpts = self.grid.div,
+                     koffset = self.grid.off )
             
-class Pwscf2(Pwscf):
-    name = 'scf2'
+class Pwscf1(Pwscf):
+    name = 'scf1'
 
     def write(self):
         Pwscf.write(self) 
         self._addParameter(key= 'la2F', value = '.true.', 
                                section = 'system')
-                               
+class Pwscf2(Pwscf):
+    name = 'scf2'
+
 class Phonon (Program):
     name  = 'ph'
     program = 'ph.x'
@@ -379,16 +372,17 @@ class Phonon (Program):
     section = 'inputph'
 
     def __init__(self, prefix, grid):
+        self.grid = grid
         Program.__init__(self, prefix= prefix)
-        self.parameters.update({'nq1': grid.div[0]})
-        self.parameters.update({'nq2': grid.div[1]})
-        self.parameters.update({'nq3': grid.div[2]})
 
     def _setParameters(self, prefix):
         self.parameters.update({'prefix': prefix})
         self.parameters.update({'outdir': './out'})
         self.parameters.update({'fildyn': prefix+'.dyn'})
         self.parameters.update({'fildvscf': prefix+'.dv'})
+        self.parameters.update({'nq1': self.grid.div[0]})
+        self.parameters.update({'nq2': self.grid.div[1]})
+        self.parameters.update({'nq3': self.grid.div[2]})
 
 class Q2r (Program):
     name  = 'q2r'
@@ -399,7 +393,7 @@ class Q2r (Program):
         self.parameters.update({'fildyn': prefix+'.dyn'})
         self.parameters.update({'flfrc': prefix+'.frc'})
     
-    def command(self, mpi):
+    def _command(self, mpi):
         command = self.program + ' < ' + self.input
         return command
 
@@ -414,7 +408,7 @@ class Matdyn (Program):
         self.parameters.update({'flfrq': prefix+'.freq'})
         self.parameters.update({'fldos': prefix+'.phonon.dos'})
 
-    def command(self, mpi):
+    def _command(self, mpi):
         command = 'mpiexec'+' -np '+ mpi.np +' '+ self.program +' -in '+ self.input
         return command
 
@@ -426,7 +420,7 @@ class Lambda (Program):
     def _setParameters(self, prefix):
         self.parameters.update({'fildyn': prefix+'.dyn'})
 
-    def command(self, mpi):
+    def _command(self, mpi):
         command = self.program + ' < ' + self.input
         return command
 
@@ -529,7 +523,7 @@ if __name__ == '__main__':
     for obj in [pseudo, grid1, grid2, qgrid, mpi]:
         obj.load(database= database)
 
-    pw1    = Pwscf(prefix= prefix, grid= grid1, cell= cell, pseudo= pseudo)
+    pw1    = Pwscf1(prefix= prefix, grid= grid1, cell= cell, pseudo= pseudo)
     pw2    = Pwscf2(prefix= prefix, grid= grid2, cell= cell, pseudo= pseudo)
     ph     = Phonon(prefix= prefix, grid= qgrid)
     q2r    = Q2r(prefix= prefix)

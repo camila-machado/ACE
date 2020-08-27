@@ -19,7 +19,6 @@ import numpy as np
 from qeprograms  import *
 
 class Directory:
-    db_dict = 'dir'
 
     def __init__(self, work_path):
         self.work = work_path
@@ -37,13 +36,6 @@ class Directory:
         shutil.rmtree(self.output)
         shutil.rmtree(self.input)
 
-    def dump(self, database):
-        pass
-
-    def load(self, database):
-        db = pk.load(database, False)
-        self.qe = db.dget(db_dict, 'qe_programs')
-
 class GridsWrapper(AttrDisplay):
     db_dict = 'grids'
 
@@ -56,19 +48,31 @@ class GridsWrapper(AttrDisplay):
         self.qpoints = Grid('qpoints')
 
     def calculate(self):
-        self.reciprocal  = self._calcReciprocalModule(cell= self.cell)
-        self.coarse.div  = self._calcGrid(distance= self.kdistance)
-        self.qpoints.div = self._calcGrid(distance= self.qdistance)
-        self.dense.div   = self._calcDenseGrid(k_div= self.coarse.div, 
-                                               q_div= self.qpoints.div)
+
+        print('\n-> Grids')
+
+        if self.calc:
+            self.reciprocal  = self._calcReciprocalModule(cell= self.cell)
+            self.minimalgrid = self._calcMinimalGrid(reciprocal= self.reciprocal)
+            self.c_factor = self._calcGridFactor(distance= self.kdistance)
+            self.q_factor = self._calcGridFactor(distance= self.qdistance)
+            self.d_factor = self._calcDenseFactor(c_factor= self.c_factor,
+                                                q_factor= self.q_factor)
+            
+            self._setGrids()
+
+            print('\nCalculated from kdistance and qdistance')
+
+        else:
+
+            print('\nUsed input grids')
 
     def _calcReciprocalModule(self, cell):
         a = np.zeros((3,3)) #direct vectors
         b = np.zeros((3,3)) #reciprocal vectors
-        nb = [0,0,0]    #reciprocal vectors' modules
+        nb = np.zeros(3)    #reciprocal vectors' modules
 
-        for i in range (0,3):
-            a[i] = cell.structure.cell[i]
+        a = cell.structure.cell
         
         pi = np.pi
         b[0] = 2*pi*np.cross(a[1],a[2])/np.dot(a[0],np.cross(a[1],a[2]))
@@ -78,29 +82,53 @@ class GridsWrapper(AttrDisplay):
         for i in range (0,3):
             nb[i] = np.sqrt(np.dot(b[i],b[i]))
 
-        return tuple(nb)
+        return nb
 
-    def _calcGrid(self, distance): 
-        grid = [0,0,0]
+    def _calcMinimalGrid(self, reciprocal):
+        div = np.zeros(3, dtype= np.int8)
         for i in range (0,3):
-            module = self.reciprocal[i]
-            grid[i] = int((module/distance) + 1)
+            div[i] = int(reciprocal[i] + 0.5)
 
-        return tuple(grid)
+        return div
 
-    def _calcDenseGrid (self, k_div, q_div):
-        grid = [0,0,0]
-        for i in range (0,3):
-            grid[i] = int(np.lcm(int(q_div[i]),int(k_div[i])))
-            if grid[i] == k_div[i]:
-                grid[i] = 2*grid[i]
+    def _calcGridFactor(self, distance):
+        factor = int(1/distance + 0.5)
+        if factor == 0:
+            factor = 1
 
-        return tuple(grid)
+        return factor 
+
+    def _calcDenseFactor(self, c_factor, q_factor):
+        factor = int(np.lcm(c_factor, q_factor))
+        if factor == c_factor:
+            factor = 2*c_factor
+
+        return factor 
+
+    def _correctType(self, factor, min_grid):
+
+        div = [0,0,0]
+        vector = factor * min_grid
+        for i in range(0,3):
+            div[i] = int(vector[i])
+
+        return div
+
+    def _setGrids(self):
+
+        c_div = self._correctType(self.c_factor, self.minimalgrid)
+        q_div = self._correctType(self.q_factor, self.minimalgrid)
+        d_div = self._correctType(self.d_factor, self.minimalgrid)
+
+        self.coarse.setGrid(div = c_div)
+        self.qpoints.setGrid(div = q_div)
+        self.dense.setGrid(div = d_div)
 
     def load(self, database):
         db = pk.load(database, False)
         self.kdistance = db.dget(self.db_dict, 'kdistance')
         self.qdistance = db.dget(self.db_dict, 'qdistance')
+        self.calc = db.dget(self.db_dict, 'calc')
         self.qpoints.load(database = database)        
         self.coarse.load(database = database)
         self.dense.load(database = database)
@@ -109,21 +137,22 @@ class GridsWrapper(AttrDisplay):
         db = pk.load(database, False)
         db.dadd(self.db_dict,('kdistance', self.kdistance))
         db.dadd(self.db_dict,('qdistance', self.qdistance))
-        self.qpoints.dump(database = database)
+        db.dadd(self.db_dict,('calc', self.calc))
         self.coarse.dump(database = database)
-        self.dense.dump(database = database)        
+        self.dense.dump(database = database)       
+        self.qpoints.dump(database = database)
 
 class CriticalTemp(AttrDisplay):
     db_dict = 'calc_stage'
 
-    calc_stage = {'database': False, 
+    calc_stage = {'database': False,
+     'calc_grids': False, 
      'w_scf1'  : False,  'w_scf2'  : False, 
      'w_ph'    : False, 'w_q2r'   : False, 
-     'w_matdyn': False, 'w_lamb': False, 
+     'w_matdyn': False, 'w_lambda': False, 
      'r_scf1'  : False,  'r_scf2'  : False, 
      'r_ph'    : False, 'r_q2r'   : False, 
-     'r_matdyn': False, 'r_lamb': False,
-     'calc_grids': False}
+     'r_matdyn': False, 'r_lambda': False}
 
     operation_modes = {'n': 'new directory', 
      'c': 'continue calculation', 
@@ -235,6 +264,9 @@ class CriticalTemp(AttrDisplay):
 
         db_name = self.prefix + '_config.db'
 
+        if os.path.exists(db_name):
+            os.remove(db_name)
+    
         try:
             subprocess.run(['write.py', db_name ])
         except OSError as err:
@@ -246,7 +278,7 @@ class CriticalTemp(AttrDisplay):
         database = Database(os.path.join(self.dir.work, db_name))
 
         return database
-
+        
     def _setGrids(self):
         self.grids = GridsWrapper(cell= self.cell)
         self.grids.load(database= self.database.file)
@@ -257,7 +289,8 @@ class CriticalTemp(AttrDisplay):
             self.calc_stage.update({'calc_grids':True})
             self.dump(database= self.database.file)
         
-        print(self.grids)
+        else:
+            print('Check: Grids fineshed')
 
     def _setPseudo(self):
         self.pseudo = Pseudo()   
@@ -266,7 +299,7 @@ class CriticalTemp(AttrDisplay):
     def _setPrograms(self):
         
         self.mpi    = Mpi()
-        self.pw1    = Pwscf(prefix= self.prefix, grid= self.grids.dense, 
+        self.pw1    = Pwscf1(prefix= self.prefix, grid= self.grids.dense, 
                             cell= self.cell, pseudo= self.pseudo)
         self.pw2    = Pwscf2(prefix= self.prefix, grid= self.grids.coarse, 
                             cell= self.cell, pseudo= self.pseudo)
@@ -279,7 +312,7 @@ class CriticalTemp(AttrDisplay):
             obj.load(database= self.database.file)
 
     def _runPrograms(self):
-        print('-> Run programs')
+        print('\n-> Run programs\n')
 
         for program in [self.pw1, self.pw2, self.ph, self.q2r, self.matdyn, self.lamb]:
             program.set_Dir(dir= self.dir)
@@ -295,6 +328,8 @@ class CriticalTemp(AttrDisplay):
                 program.run(mpi=self.mpi)
                 self.calc_stage.update({'r_'+program.name:True})
                 self.dump(database= self.database.file)
+            else:
+                print('Check: {} fineshed'.format(program.name))
 
     def load(self, database):
         db = pk.load(database, False)
@@ -305,45 +340,33 @@ class CriticalTemp(AttrDisplay):
         db.set(self.db_dict, self.calc_stage)
         db.dump()
 
-def get_input_data():
-    user_input = sys.argv
-    input_file = PurePath(user_input[1])
-
-    return infile, command
-
 ################################################################################
 ##----------------------------------------------------------------------------##
 ################################################################################
 
 if __name__ == '__main__':
 
-    #-------test GridsWrapper--------------
-    cell_Nb = CellStructure('/home/camila/Documentos/EMA/Program-TC/cif_database/Nb.cif')
-    cell_H3S = CellStructure('/home/camila/Documentos/EMA/Program-TC/cif_database/H3S-200GPa.cif')
-
-    print('Nb cell:')
-    print(cell_Nb.structure.get_cell())
-
-    print('H3S cell:')
-    print(cell_H3S.structure.get_cell())
-
-    grids = GridsWrapper(cell = cell_H3S, kdistance= 0.2, qdistance= 0.6)
-    grids.calculate()
-    print(grids)
-
     #-------test CriticalTemp--------------
-    H3S_cif = '/home/camila/Documentos/EMA/Program-TC/cif_database/H3S-200GPa.cif'
-    Nb_cif = '/home/camila/Documentos/EMA/Program-TC/cif_database/Nb.cif'
+#    H3S_cif = '/home/camila/Documentos/EMA/Program-TC/cif_database/H3S.cif'
+#    Nb_cif = '/home/camila/Documentos/EMA/Program-TC/cif_database/Nb.cif'
+#    Hg_cif = '/home/camila/Documentos/EMA/Program-TC/cif_database/Hg.cif'
+    database= '/home/camila/Documentos/EMA/Program-TC/H3S/H3S_config.db'
 
-    TC = CriticalTemp(infile= Nb_cif , control= 'n')
+    TC = CriticalTemp(infile = database , control= 'n')
     TC.calculate()
 
 """
+    for element in ['Cd','H3S','Hg','In','Nb','Ru','Sn','Ti','Zn']:
+        database= '/home/camila/Documentos/EMA/Program-TC/{}/{}_config.db'.format(element, element)
+
+        TC = CriticalTemp(infile = database , control= 'n')
+        TC.calculate()
+
     for cif in [Nb_cif, H3S_cif]:
         TC = CriticalTemp(infile= cif , control= 'w')
         TC.calculate()
     
-    H3S_cif = '/home/camila/Documentos/EMA/Program-TC/teste/H3S-200GPa/H3S-200GPa.cif'
+    H3S_cif = '/home/camila/Documentos/EMA/Program-TC/teste/H3S/H3S.cif'
     Nb_cif = '/home/camila/Documentos/EMA/Program-TC/teste/Nb/Nb.cif'
 
     for cif in [H3S_cif, Nb_cif]:
@@ -357,7 +380,19 @@ if __name__ == '__main__':
     for cif in [H3S_cif_new]:
         TC = CriticalTemp(infile= cif , control= 'w')
         TC.calculate()
+
+    #-------test GridsWrapper--------------
+    cell_Nb = CellStructure('/home/camila/Documentos/EMA/Program-TC/cif_database/Nb.cif')
+    cell_H3S = CellStructure('/home/camila/Documentos/EMA/Program-TC/cif_database/H3S.cif')
+    cell_Hg = CellStructure('/home/camila/Documentos/EMA/Program-TC/cif_database/Hg.cif')
+
+    print('Nb cell:')
+    print(cell_Nb.structure.get_cell())
+
+    print('H3S cell:')
+    print(cell_H3S.structure.get_cell())
+
+    grids = GridsWrapper(cell = cell_Hg, kdistance= 0.35, qdistance= 1.05)
+    grids.calculate()
+    #print(grids)
 """
-
-
-
