@@ -16,6 +16,7 @@ This module provide class interfaces for quantum espresso programs
 """
 
 from classtools import AttrDisplay
+from classtools import WriteInput
 from pathlib import PurePath
 import ase
 import ase.io
@@ -183,7 +184,8 @@ class Grid(AttrDisplay):
         db.dadd(self.db_dict,(self.name+'_off', self.off))
         db.dump()
 
-class Program(AttrDisplay):
+
+class Program(AttrDisplay, WriteInput):
     name = None
     program = None
     file_order = None
@@ -244,60 +246,11 @@ class Program(AttrDisplay):
             text = '{program_txt} fineshed! :D'
             print(text.format(program_txt = self.name))
 
-    def write(self):           
-        first_line = '&'+self.section.upper()+'\n/\n'
-        with open(self.input, 'w') as f:     
-            f.write(first_line)
-
-        self.file_order.reverse()
-        for key in self.file_order:
-            value = str(self.parameters.get(key))
-            self._addParameter(key= key, value= value, section= self.section) 
-
-    def _addParameter(self, key, value, section):
-
-        with open(self.input, 'r') as f:
-            content = f.readlines()
-
-        value = self._treatValue(word = value)
-        section_pos = self._getPosition(content= content, word= section)
-        identation = self._setIdentation(word= key)
-
-        new_pos = section_pos + 1
-        new_info = '   ' + key + identation + '= ' + value + '\n'
-        content.insert(new_pos,new_info)
-
-        with open(self.input, 'w') as f:     
-            for line in content:
-                f.write(line)
-    
-    def _isnumber (self, number):
-        number = number.replace('e','')
-        number = number.replace('-','')
-        number = number.replace('.','')
-        test = number.isnumeric()
-        return test
-    
-    def _setIdentation(self, word):
-        identation = ''
-        i = 0
-        while i < 17 - len(word):
-            identation += ' '
-            i += 1
-        return identation
-    
-    def _treatValue(self, word):
-        if word.find('true') ==-1 and word.find('false') == -1:
-            if self._isnumber(word) == False:
-                word = "'"+word+"'"
-        return word
-    
-    def _getPosition(self, content, word):
-        for line in content:
-            if line.find(word.upper() or word.lower()) > -1:
-                position = content.index(line)
-                break
-        return position
+    def write(self):
+        self._writeInput(section = self.section, 
+                        f_input = self.input, 
+                        file_order = self.file_order, 
+                        parameters = self.parameters)
 
 class Pwscf (Program):
     name = 'scf'
@@ -357,9 +310,10 @@ class Pwscf1(Pwscf):
     name = 'scf1'
 
     def write(self):
-        Pwscf.write(self) 
-        self._addParameter(key= 'la2F', value = '.true.', 
-                               section = 'system')
+        Pwscf.write(self)
+        WriteInput._addParameter(self, key= 'la2F', value = '.true.', 
+                           section = 'system', f_input = self.input)
+
 class Pwscf2(Pwscf):
     name = 'scf2'
 
