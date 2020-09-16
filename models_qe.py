@@ -16,114 +16,17 @@ This module provide class interfaces for quantum espresso programs
 """
 
 from classtools import AttrDisplay
-from pathlib import PurePath
+from tools import WriteStrategy
+from models_program import CellStructure
+from models_program import Database
+
 import ase
 import ase.io
 import os
-import shutil
-import sys
 import pickledb as pk
 import subprocess
+import sys
         
-class Mpi(AttrDisplay):
-    """
-
-    This class gather information to run quantum espresso programs  
-    with parallel version
-    """
-    db_dict = 'mpi'
-
-    def __init__(self, np = 1, nk = 1): 
-        self.np = str(np)
-        self.nk = str(nk)
-
-    def load(self, database):
-        db = pk.load(database, False)
-        self.np = str(db.dget(self.db_dict,'np'))  
-        self.nk = str(db.dget(self.db_dict,'nk'))
-    
-    def dump(self, database):
-        db = pk.load(database, False)
-        db.dcreate (self.database)
-        db.dadd(self.db_dict,('np', self.np) )
-        db.dadd(self.db_dict,('nk', self.nk) )
-        db.dump()
-
-class File(AttrDisplay):
-    """
-    
-    This class provide file interface used to manage database and
-    structures files 
-    """
-    
-    def __init__(self, file_in):
-        self.path = PurePath(file_in)
-        self.file = str(self.path)
-        self.name = self.path.stem
-        self.format = self.path.suffix.strip('.')
-        self.dir = str(self.path.parent)
-        assert os.path.isfile(self.path), 'This is not a file directory'
-
-    def copyFile(self):
-        """
-
-        This function copies the file represented by the File object 
-        to the current work path and atualize the File object information
-        accordinly with the copied file new path.
-        """
-        current_path = os.getcwd()
-        try:
-            new_file = shutil.copy(self.file, current_path)
-        except shutil.SameFileError as e:
-            new_file =  os.path.join(current_path, os.path.basename(self.file))
-            print('Check: File already here')
-
-        except IOError as e:
-            print('Unable to copy file. %s' % e)
-            raise
-        except:
-            print('Unexpected error:', sys.exc_info())
-            raise
-        else:
-            print('Check: File copied')
-            self.__init__(new_file)    
-
-class CellStructure(File):
-    """
-    
-    This class provides an interface for cell structure .cif files,
-    easily reaching information useful for quantum espresso programs
-    """
-    db_dict = 'cell_structure'
-
-    def __init__(self, file_str = ''):
-        File.__init__(self, file_str)
-        assert self.format == 'cif', 'Structure file must be .cif'
-        self.structure = ase.io.read(filename = self.file,
-                            format=self.format,
-                            subtrans_included = False,
-                            primitive_cell= True)
-
-        symbols = self.structure.get_chemical_symbols()
-        self.elements = list(dict.fromkeys(symbols))
-    
-    def copyFile(self):
-        print('\n-> Copying structure file ...\n')
-        File.copyFile(self)
-
-class Database(File):
-    """
-    
-    This class provides an interface for database .db files
-    """
-    def __init__(self, file_str = ''):
-        File.__init__(self, file_str)
-        assert self.format == 'db', 'Database file must be .db'
-        #verifirar de está corrompido ou não (database fineshed = True)
-
-    def copyFile(self):
-        print('\n-> Copying database file ...\n')
-        File.copyFile(self)
 
 class Pseudo(AttrDisplay):
     db_dict = 'pseudo'
@@ -183,7 +86,36 @@ class Grid(AttrDisplay):
         db.dadd(self.db_dict,(self.name+'_off', self.off))
         db.dump()
 
-class Program(AttrDisplay):
+
+class Mpi(AttrDisplay):
+    """
+
+    This class gather information to run quantum espresso programs  
+    with parallel version
+    """
+    db_dict = 'mpi'
+
+    def __init__(self, np = 1, nk = 1): 
+        self.np = str(np)
+        self.nk = str(nk)
+
+    def load(self, database):
+        db = pk.load(database, False)
+        self.np = str(db.dget(self.db_dict,'np'))  
+        self.nk = str(db.dget(self.db_dict,'nk'))
+    
+    def dump(self, database):
+        db = pk.load(database, False)
+        db.dcreate (self.database)
+        db.dadd(self.db_dict,('np', self.np) )
+        db.dadd(self.db_dict,('nk', self.nk) )
+        db.dump()
+        
+
+class IProgram(AttrDisplay):
+
+    write_method = WriteStrategy()
+
     name = None
     program = None
     file_order = None
@@ -244,69 +176,20 @@ class Program(AttrDisplay):
             text = '{program_txt} fineshed! :D'
             print(text.format(program_txt = self.name))
 
-    def write(self):           
-        first_line = '&'+self.section.upper()+'\n/\n'
-        with open(self.input, 'w') as f:     
-            f.write(first_line)
+    def write(self):
+        self.write_method.section_single(section = self.section, 
+                                        f_input = self.input, 
+                                        file_order = self.file_order, 
+                                        parameters = self.parameters)
 
-        self.file_order.reverse()
-        for key in self.file_order:
-            value = str(self.parameters.get(key))
-            self._addParameter(key= key, value= value, section= self.section) 
-
-    def _addParameter(self, key, value, section):
-
-        with open(self.input, 'r') as f:
-            content = f.readlines()
-
-        value = self._treatValue(word = value)
-        section_pos = self._getPosition(content= content, word= section)
-        identation = self._setIdentation(word= key)
-
-        new_pos = section_pos + 1
-        new_info = '   ' + key + identation + '= ' + value + '\n'
-        content.insert(new_pos,new_info)
-
-        with open(self.input, 'w') as f:     
-            for line in content:
-                f.write(line)
-    
-    def _isnumber (self, number):
-        number = number.replace('e','')
-        number = number.replace('-','')
-        number = number.replace('.','')
-        test = number.isnumeric()
-        return test
-    
-    def _setIdentation(self, word):
-        identation = ''
-        i = 0
-        while i < 17 - len(word):
-            identation += ' '
-            i += 1
-        return identation
-    
-    def _treatValue(self, word):
-        if word.find('true') ==-1 and word.find('false') == -1:
-            if self._isnumber(word) == False:
-                word = "'"+word+"'"
-        return word
-    
-    def _getPosition(self, content, word):
-        for line in content:
-            if line.find(word.upper() or word.lower()) > -1:
-                position = content.index(line)
-                break
-        return position
-
-class Pwscf (Program):
+class Pwscf (IProgram):
     name = 'scf'
     program = 'pw.x'
     file_order = ['prefix','restart_mode','pseudo_dir','outdir','occupations',
                  'smearing','degauss','ecutwfc','ecutrho','conv_thr']
     
     def __init__(self, prefix, pseudo, cell, grid):
-        Program.__init__(self, prefix= prefix)
+        IProgram.__init__(self, prefix= prefix)
         self.grid = grid
         self.cell = cell
         self.pseudo = pseudo.selectFiles(cell.elements)
@@ -357,13 +240,14 @@ class Pwscf1(Pwscf):
     name = 'scf1'
 
     def write(self):
-        Pwscf.write(self) 
-        self._addParameter(key= 'la2F', value = '.true.', 
-                               section = 'system')
+        Pwscf.write(self)
+        self.write_method._addParameter(key= 'la2F', value = '.true.', 
+                           section = 'system', f_input = self.input)
+
 class Pwscf2(Pwscf):
     name = 'scf2'
 
-class Phonon (Program):
+class Phonon (IProgram):
     name  = 'ph'
     program = 'ph.x'
     file_order = ['prefix', 'outdir', 'tr2_ph', 'fildyn','ldisp', 'nq1',
@@ -373,7 +257,7 @@ class Phonon (Program):
 
     def __init__(self, prefix, grid):
         self.grid = grid
-        Program.__init__(self, prefix= prefix)
+        IProgram.__init__(self, prefix= prefix)
 
     def _setParameters(self, prefix):
         self.parameters.update({'prefix': prefix})
@@ -384,7 +268,7 @@ class Phonon (Program):
         self.parameters.update({'nq2': self.grid.div[1]})
         self.parameters.update({'nq3': self.grid.div[2]})
 
-class Q2r (Program):
+class Q2r (IProgram):
     name  = 'q2r'
     program = 'q2r.x'
     file_order = ['zasr', 'fildyn', 'flfrc', 'la2F']
@@ -397,7 +281,7 @@ class Q2r (Program):
         command = self.program + ' < ' + self.input
         return command
 
-class Matdyn (Program):
+class Matdyn (IProgram):
     name = 'matdyn'
     program = 'matdyn.x'
     file_order = ['asr', 'flfrc', 'flfrq', 'la2F', 'dos', 'fldos', 'nk1',
@@ -412,7 +296,7 @@ class Matdyn (Program):
         command = 'mpiexec'+' -np '+ mpi.np +' '+ self.program +' -in '+ self.input
         return command
 
-class Lambda (Program):
+class Lambda (IProgram):
     name = 'lambda'
     program = 'lambda.x'
     file_order = ['zasr', 'fildyn', 'flfrc', 'la2F']

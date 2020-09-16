@@ -21,21 +21,19 @@
 
 #call in terminal:
 
-$ program.py <directory/input_file> <command> 
+$ program.py <directory/input_file> <command> <directory/input_var>
 
-- Input file formats: '.cif' or 'config.db'
+- Input file format: '.cif'
+- Input var format: '.TC.in'
 - Commands:
     'n' - (new) create a new directory for output files
     'w' - (overwrite) in case of name conflict, overwrite the data of a 
           previous calculation
     'c' - (continue) continue a calculation interrupted after some steps  
 
-obs1: In order for the 'config.db' file work as input, the original '.cif' file 
-      must be in the same directory.
-obs2: In order for the '.cif' file work with 'continue' command, the 'config.db' file 
-      must be in the same directory.
-obs3: Command is optional
-obs4: The default operation mode is 'n' (new)
+obs1: Command is optional, the default operation mode is 'n' (new)
+obs2: Input_var file is optional, the default variables are defined in
+      the program
 
 #Enjoy your TC's!!!
 
@@ -52,14 +50,15 @@ add the command lines to the .bashrc file for permanet solution, and run:
 $ souce .bashrc (to execut alterations and make them valid)
 
 (**) Run the commands:
-$ chmod +x program.py
-$ chmod +x write.py
+$ chmod +x calculations_qe.py
+$ chmod +x controllers.py
+$ chmod +x models_program.py
+$ chmod +x models_qe.py
+$ chmod +x tc.py
+$ chmod +x tools.py
 
 #-------------------------------------------------------------------------------
-#New features v-3.1:
+#New features v-4.0:
 
-#-> Allows to differente entrances for grids:
-#    - fixed values directly used in the QE input files
-#    - k-points distance and q-points distance values in angstron. Grid values 
-#      are calculated proportionaly to the reciprocal vectors module.
-#
+#-> New software architecture allows to add new calculations routines
+#-> Input txt file as variables entrance
