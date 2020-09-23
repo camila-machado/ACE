@@ -25,16 +25,16 @@ class ICalculation():
     db_dict = 'calc_stage'
     calc_stage = None
     variables = None
-    input_sufix = None
+    sufix = None
 
     def __init__(self, strtucture):
         assert self.calc_stage, 'Calculation satages must be defined!'
         assert self.variables, 'Variables must be defined!'
-        assert self.variables, 'Input sufix must be defined!'
+        assert self.sufix, 'Input sufix must be defined!'
 
         self.cell = strtucture
         self.prefix = strtucture.name
-        self.input_name = self.prefix + self.input_sufix
+        self.input_name = self.prefix + '.' + self.sufix + '.in'
 
     def calculate(self):
         assert self.database, 'Database must be defined'
@@ -175,10 +175,10 @@ class TcGridsWrapper(AttrDisplay):
 class CalcTC(AttrDisplay, ICalculation):
 
     calc_stage = {'calc_grids': False, 
-     'w_scf1'  : False,  'w_scf2'  : False, 
+     'w_scf1'  : False,  'w_scf2' : False, 
      'w_ph'    : False, 'w_q2r'   : False, 
      'w_matdyn': False, 'w_lambda': False, 
-     'r_scf1'  : False,  'r_scf2'  : False, 
+     'r_scf1'  : False,  'r_scf2' : False, 
      'r_ph'    : False, 'r_q2r'   : False, 
      'r_matdyn': False, 'r_lambda': False}
 
@@ -189,7 +189,7 @@ class CalcTC(AttrDisplay, ICalculation):
               ['zasr', 'la2F'], ['asr', 'la2F', 'dos', 'nk1', 'nk2', 'nk3', 'ndos'], 
               ['sigma_omega', 'mu']]
     
-    input_sufix = '.TC.in'
+    sufix = 'TC'
 
     def __init__(self, strtucture):
         ICalculation.__init__(self, strtucture = strtucture)
@@ -326,10 +326,201 @@ class CalcTC(AttrDisplay, ICalculation):
         return db
 
 class CalcEnergy(AttrDisplay, ICalculation):
-    pass
+
+    calc_stage = {'w_scf'  : False, 
+                  'r_scf'  : False}
+
+    variables = [['routine'], ['qe_programs'], ['pseudo_folder'], ['np', 'nk'], ['kpoints_div', 'coarse_off', 
+              'kpoints_off'], ['restart_mode', 'occupations', 'smearing', 'degauss', 'conv_thr']]
+    
+    sufix = 'EN'
+
+    def __init__(self, strtucture):
+        ICalculation.__init__(self, strtucture = strtucture)
+                              
+    def _setVariables(self):
+        
+        self.pseudo = Pseudo()   
+        self.pseudo.load(database= self.database.file)
+
+        self.grid = Grid(name= 'kpoints')
+        self.grid.load(database= self.database.file)
+
+    def _setPrograms(self): 
+      
+        self.mpi    = Mpi()
+        self.pw     = Pwscf(prefix= self.prefix, grid= self.grid, 
+                            cell= self.cell, pseudo= self.pseudo)
+
+        for obj in [self.mpi, self.pw]:
+            obj.load(database= self.database.file)
+
+    def _runPrograms(self):
+
+        print('\n-> Run programs\n')
+
+        for program in [self.pw]:
+            program.set_Dir(dir= self.dir)
+
+            if not(self.calc_stage.get('w_'+program.name)):
+                os.chdir(self.dir.input)
+                program.write()
+                self.calc_stage.update({'w_'+program.name:True})
+                self.dump(database= self.database.file)
+
+            if not (self.calc_stage.get('r_'+program.name)):
+                os.chdir(self.dir.calc)   
+                program.run(mpi=self.mpi)
+                self.calc_stage.update({'r_'+program.name:True})
+                self.dump(database= self.database.file)
+            else:
+                print('Check: {} fineshed'.format(program.name))
+
+    def makeDatabase(self, name):
+        
+        _DATABASE = name
+
+        db = pk.load(_DATABASE, False)
+
+        #optional: in case quantum-espresso programs are not in linux $PATH
+        #qe - quantum espresso programs' path
+        db.dcreate ('calculation')
+        db.dadd('calculation',('routine','ENERGY') )
+        
+        #qe - quantum espresso programs' path
+        db.dcreate ('qe')
+        db.dadd('qe',('qe_programs','') )
+
+        #pseudo - pseudo potentials' folder path
+        db.dcreate('pseudo')
+        db.dadd('pseudo',('pseudo_folder','/home/camila/Documentos/EMA/Program-TC/pseudo/USPP') )
+
+        #mpi - parallen running description
+        db.dcreate ('mpi')
+
+        db.dadd('mpi',('np',4) )
+        db.dadd('mpi',('nk',4) )
+
+        #grids - points distance used to calculate grids for scf and phonons calculations
+        db.dcreate ('grid')
+
+        db.dadd('grid',('kpoints_div',(9,9,9)) )
+        db.dadd('grid',('kpoints_off',(0,0,0)) )
+
+        #Quantum-espresso programs' parameters:
+        db.dcreate ('pw_par')
+
+        db.dadd('pw_par',('restart_mode','from_scratch') )
+        db.dadd('pw_par',('occupations','smearing') )
+        db.dadd('pw_par',('smearing','marzari-vanderbilt') )
+        db.dadd('pw_par',('degauss',0.05) )
+        db.dadd('pw_par',('conv_thr',1e-10) )
+
+        return db
 
 class CalcPhonon(AttrDisplay, ICalculation):
-    pass
+    calc_stage = {'w_scf': False, 'w_ph': False, 
+                  'r_scf': False, 'r_ph': False}
+
+    variables = [['routine'], ['qe_programs'], ['pseudo_folder'], ['np', 'nk'], ['kpoints_div', 'coarse_off', 
+              'kpoints_off'], ['restart_mode', 'occupations', 'smearing', 'degauss', 'conv_thr'], 
+              ['tr2_ph', 'electron_phonon', 'el_ph_sigma', 'el_ph_nsigma']]
+    
+    sufix = 'PH'
+
+    def __init__(self, strtucture):
+        ICalculation.__init__(self, strtucture = strtucture)
+                              
+    def _setVariables(self):
+        
+        self.pseudo = Pseudo()
+        self.pseudo.load(database= self.database.file)
+
+        self.grid = Grid(name= 'kpoints')
+        self.grid.load(database= self.database.file)
+
+    def _setPrograms(self): 
+      
+        self.mpi    = Mpi()
+        self.pw    = Pwscf1(prefix= self.prefix, grid= self.grid,
+                            cell= self.cell, pseudo= self.pseudo)
+        self.ph     = Phonon(prefix= self.prefix)
+
+        for obj in [self.mpi, self.pw, self.ph]:
+            obj.load(database= self.database.file)
+
+    def _runPrograms(self):
+
+        print('\n-> Run programs\n')
+
+        for program in [self.pw, self.ph]:
+            program.set_Dir(dir= self.dir)
+
+            if not(self.calc_stage.get('w_'+program.name)):
+                os.chdir(self.dir.input)
+                program.write()
+                self.calc_stage.update({'w_'+program.name:True})
+                self.dump(database= self.database.file)
+
+            if not (self.calc_stage.get('r_'+program.name)):
+                os.chdir(self.dir.calc)   
+                program.run(mpi=self.mpi)
+                self.calc_stage.update({'r_'+program.name:True})
+                self.dump(database= self.database.file)
+            else:
+                print('Check: {} fineshed'.format(program.name))
+
+    def makeDatabase(self, name):
+        
+        _DATABASE = name
+
+        db = pk.load(_DATABASE, False)
+
+        #optional: in case quantum-espresso programs are not in linux $PATH
+        #qe - quantum espresso programs' path
+        db.dcreate ('calculation')
+        db.dadd('calculation',('routine','PH') )
+        
+        #qe - quantum espresso programs' path
+        db.dcreate ('qe')
+        db.dadd('qe',('qe_programs','') )
+
+        #pseudo - pseudo potentials' folder path
+        db.dcreate('pseudo')
+        db.dadd('pseudo',('pseudo_folder','/home/camila/Documentos/EMA/Program-TC/pseudo/USPP') )
+
+        #mpi - parallen running description
+        db.dcreate ('mpi')
+
+        db.dadd('mpi',('np',4) )
+        db.dadd('mpi',('nk',4) )
+
+        #grids - points distance used to calculate grids for scf and phonons calculations
+        db.dcreate ('grid')
+
+        db.dadd('grid',('kpoints_div',(9,9,9)) )
+        db.dadd('grid',('kpoints_off',(0,0,0)) )
+
+        #Quantum-espresso programs' parameters:
+        db.dcreate ('pw_par')
+
+        db.dadd('pw_par',('restart_mode','from_scratch') )
+        db.dadd('pw_par',('occupations','smearing') )
+        db.dadd('pw_par',('smearing','marzari-vanderbilt') )
+        db.dadd('pw_par',('degauss',0.05) )
+        db.dadd('pw_par',('conv_thr',1e-10) )
+
+        db.dcreate ('ph_par')
+
+
+        db.dadd('ph_par',('tr2_ph',1e-12) )
+        db.dadd('ph_par',('electron_phonon','interpolated') )
+        db.dadd('ph_par',('recover','.false.') )
+        db.dadd('ph_par',('ldisp','.false.') )
+        db.dadd('ph_par',('el_ph_sigma',0.005) )
+        db.dadd('ph_par',('el_ph_nsigma',10) )
+
+        return db
 
 ################################################################################
 ##----------------------------------------------------------------------------##

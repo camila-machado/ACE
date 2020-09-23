@@ -21,6 +21,8 @@ from models_program import Directory
 from models_program import InputVariables
 
 from calculations_qe import CalcTC
+from calculations_qe import CalcEnergy
+from calculations_qe import CalcPhonon
 from tools import WriteStrategy
 from pathlib import PurePath
 
@@ -52,11 +54,13 @@ class DatabaseFactory():
 
     def _find(self, db_name):
 
-        if os.path.exists(db_name):
-            work_dir = os.getcwd()
-            database = Database(os.path.join(work_dir, db_name))
+        work_dir = os.getcwd()
+        db_dir = os.path.join(work_dir, db_name)
+
+        if os.path.exists(db_dir):
+            database = Database(db_dir)
         else:
-            AssertionError('No database file found')
+            raise AssertionError('No database file found')
 
         return database
 
@@ -93,18 +97,20 @@ class DatabaseFactory():
 
 class DirectoryFactory:
 
-    def make(self, op, prefix, infile):
+    def make(self, op, prefix, infile, calc):
+
+        dir_name = prefix + '_' + calc.sufix
 
         if op == 'c':
             directory = self._copy(infile= infile)
             return directory
 
         elif op == 'n': 
-            directory = self._new(name = prefix)
+            directory = self._new(name = dir_name)
 
 
         elif op == 'w':
-            directory = self._overwrite(name = prefix)
+            directory = self._overwrite(name = dir_name)
         
         directory.makedirs()
 
@@ -147,7 +153,10 @@ class ControllerProgram(AttrDisplay):
      'w': 'overwrite'}
 
     calculation_modes = {'default':'TC',
-     'TC': 'superconductivity critical temperature'}
+     'TC': 'superconductivity critical temperature',
+     'EN': 'cell structure energy',
+     'PH': 'phonons distribution in gamma'}
+
 
     def __init__ (self, clmode):
                                             
@@ -170,16 +179,18 @@ class ControllerProgram(AttrDisplay):
 
         if clmode == 'TC':
             routine = CalcTC(strtucture= self.cell)
-        else:
-            pass
-
+        elif clmode == 'EN':
+            routine = CalcEnergy(strtucture= self.cell)
+        elif clmode == 'PH':
+            routine = CalcPhonon(strtucture= self.cell)
         return routine
 
     def calculate(self):
     
         self.routine.dir = self.drfactory.make(op=self.opmode, 
                                                prefix= self.prefix, 
-                                               infile= self.cell)
+                                               infile= self.cell,
+                                               calc= self.routine)
         
         os.chdir(self.routine.dir.work)
         self.cell.copy()
