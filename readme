@@ -23,8 +23,9 @@
 
 $ program.py <directory/input_file> <command> <directory/input_var>
 
+- Programs available: 'tc.py', 'energy.py', 'phonon.py'
 - Input file format: '.cif'
-- Input var format: '.TC.in'
+- Input var format: '.TC.in', 'EN.in', 'PH.in'
 - Commands:
     'n' - (new) create a new directory for output files
     'w' - (overwrite) in case of name conflict, overwrite the data of a 
