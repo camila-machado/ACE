@@ -28,30 +28,62 @@ class WriteStrategy:
             self._addParameters(parameters = parameters[i],  section= section[i], 
                                   f_input = f_input, file_order = file_order[i])
 
-    def _addParameters(self, parameters, section, f_input, file_order, ):
+    def _addParameters(self, parameters, section, f_input, file_order):
 
         file_order.reverse()
         for key in file_order:
             value = str(parameters.get(key))
-            self._addParameter(key= key, value= value, section= section, f_input = f_input) 
+            self.addParameter(key = key, value= value, section= section, f_input= f_input)
 
-    def _addParameter(self, key, value, section, f_input):
+    def addParameter(self, key, value, section, f_input):
+        line = self._mke_key_value_line(key= key, value = value)
+        self.addLine(line= line, position= section, f_input= f_input)
 
+    def addLine(self, line, position, f_input):
         with open(f_input, 'r') as f:
             content = f.readlines()
 
-        value = self._treatValue(word = value)
-        section_pos = self._getPosition(content= content, word= section)
-        identation = self._setIdentation(word= key)
+        line_pos = self._getPosition(content= content, word= position) + 1 
 
-        new_pos = section_pos + 1
-        new_info = '   ' + key + identation + '= ' + value + '\n'
-        content.insert(new_pos,new_info)
+        content.insert(line_pos,line)
 
         with open(f_input, 'w') as f:     
             for line in content:
                 f.write(line)
     
+    def _getPosition(self, content, word):
+        for line in content:
+            if line.find(word.upper() or word.lower()) > -1:
+                position = content.index(line)
+                break
+        return position
+
+    def _mke_key_value_line(self, key, value):
+        value = self._treatValue(word = value)
+        identation = self._setIdentation(word= key)
+
+        line = '   ' + key + identation + '= ' + value + '\n'
+        
+        return line
+
+    def _setIdentation(self, word):
+        identation = ''
+        i = 0
+        while i < 17 - len(word):
+            identation += ' '
+            i += 1
+        return identation
+    
+    def _treatValue(self, word):
+        
+        if not(self._isbool(word)):
+            if  not(self._isnumber(word)):
+                word = "'"+word+"'"
+        return word
+    
+    def _isbool(self, word):
+        return (word.find('true') !=-1) or (word.find('false') != -1)
+
     def _isnumber (self, number):
         number = number.replace('e','')
         number = number.replace('-','')
@@ -62,27 +94,6 @@ class WriteStrategy:
         test = number.isnumeric()
         return test
     
-    def _setIdentation(self, word):
-        identation = ''
-        i = 0
-        while i < 17 - len(word):
-            identation += ' '
-            i += 1
-        return identation
-    
-    def _treatValue(self, word):
-        if word.find('true') ==-1 and word.find('false') == -1:
-            if self._isnumber(word) == False:
-                word = "'"+word+"'"
-        return word
-    
-    def _getPosition(self, content, word):
-        for line in content:
-            if line.find(word.upper() or word.lower()) > -1:
-                position = content.index(line)
-                break
-        return position
-
 
 ################################################################################
 ##----------------------------------------------------------------------------##

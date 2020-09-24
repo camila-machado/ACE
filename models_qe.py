@@ -241,7 +241,7 @@ class Pwscf1(Pwscf):
 
     def write(self):
         Pwscf.write(self)
-        self.write_method._addParameter(key= 'la2F', value = '.true.', 
+        self.write_method.addParameter(key= 'la2F', value = '.true.', 
                            section = 'system', f_input = self.input)
 
 class Pwscf2(Pwscf):
@@ -255,7 +255,7 @@ class Phonon (IProgram):
                   'el_ph_nsigma']
     section = 'inputph'
 
-    def __init__(self, prefix, grid):
+    def __init__(self, prefix, grid = None):
         self.grid = grid
         IProgram.__init__(self, prefix= prefix)
 
@@ -264,9 +264,21 @@ class Phonon (IProgram):
         self.parameters.update({'outdir': './out'})
         self.parameters.update({'fildyn': prefix+'.dyn'})
         self.parameters.update({'fildvscf': prefix+'.dv'})
-        self.parameters.update({'nq1': self.grid.div[0]})
-        self.parameters.update({'nq2': self.grid.div[1]})
-        self.parameters.update({'nq3': self.grid.div[2]})
+        if self.grid:
+            self.parameters.update({'nq1': self.grid.div[0]})
+            self.parameters.update({'nq2': self.grid.div[1]})
+            self.parameters.update({'nq3': self.grid.div[2]})
+        else:
+            self.file_order.remove('nq1')
+            self.file_order.remove('nq2')
+            self.file_order.remove('nq3')
+    
+    def write(self):
+        IProgram.write(self)
+        if not(self.grid):
+            self.write_method.addLine(line= '0.0 0.0 0.0', 
+                                      position= '/\n', 
+                                      f_input= self.input)
 
 class Q2r (IProgram):
     name  = 'q2r'
