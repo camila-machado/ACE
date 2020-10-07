@@ -50,12 +50,16 @@ class IFile(AttrDisplay):
     """
     
     def __init__(self, infile):
-        self.path = PurePath(infile)
-        self.file = str(self.path)
-        self.name = self.path.stem
-        self.format = self.path.suffix.strip('.')
-        self.dir = str(self.path.parent)
-        assert os.path.isfile(self.path), 'This is not a file directory'
+
+        if not(os.path.isfile(infile)):
+            infile = os.path.join(os.getcwd(), infile)
+            assert os.path.isfile(infile), 'This is not a file directory'
+
+        path = PurePath(infile)
+        self.name = path.stem
+        self.format = path.suffix.strip('.')
+        self.dir = str(path.parent)
+        self.file = str(path)
 
     def copy(self):
         """
@@ -98,9 +102,9 @@ class CellStructure(IFile):
         IFile.__init__(self, infile)
         assert self.format == 'cif', 'Structure file must be .cif'
         self.structure = ase.io.read(filename = self.file,
-                            format=self.format,
-                            subtrans_included = False,
-                            primitive_cell= True)
+                                    format=self.format,
+                                    subtrans_included = False,
+                                    primitive_cell= True)
         symbols = self.structure.get_chemical_symbols()
         self.elements = list(dict.fromkeys(symbols))
     

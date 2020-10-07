@@ -24,17 +24,26 @@ class ICalculation():
 
     db_dict = 'calc_stage'
     calc_stage = None
-    variables = None
+    variables = [['routine'], ['qe_programs'], ['pseudo_folder'], ['np', 'nk']]
+    grid_variable = None
+    programs = None
     sufix = None
 
-    def __init__(self, strtucture):
-        assert self.calc_stage, 'Calculation satages must be defined!'
-        assert self.variables, 'Variables must be defined!'
+    def __init__(self, structure):
         assert self.sufix, 'Input sufix must be defined!'
+        assert self.programs, 'Programs must be defined!'
+        assert self.calc_stage, 'Calculation satages must be defined!'
+        assert self.grid_variable, 'Variables must be defined!'
 
-        self.cell = strtucture
-        self.prefix = strtucture.name
+        self.cell = structure
+        self.prefix = structure.name
         self.input_name = self.prefix + '.' + self.sufix + '.in'
+
+        self.variables = ICalculation.variables.append(self.grid_variable)
+        print (self.variables)
+        print (self.programs)
+        for prog in self.programs:
+            self.variables.append(prog.file_order)
 
     def calculate(self):
         assert self.database, 'Database must be defined'
@@ -150,9 +159,9 @@ class TcGridsWrapper(AttrDisplay):
         q_div = self._correctType(self.q_factor, self.minimalgrid)
         d_div = self._correctType(self.d_factor, self.minimalgrid)
 
-        self.coarse.setGrid(div = c_div)
-        self.qpoints.setGrid(div = q_div)
-        self.dense.setGrid(div = d_div)
+        self.coarse.div = tuple(c_div)
+        self.qpoints.div = tuple(q_div)
+        self.dense.div = tuple(d_div)
 
     def load(self, database):
         db = pk.load(database, False)
@@ -174,6 +183,8 @@ class TcGridsWrapper(AttrDisplay):
 
 class CalcTC(AttrDisplay, ICalculation):
 
+    sufix = 'TC'
+
     calc_stage = {'calc_grids': False, 
      'w_scf1'  : False,  'w_scf2' : False, 
      'w_ph'    : False, 'w_q2r'   : False, 
@@ -182,17 +193,22 @@ class CalcTC(AttrDisplay, ICalculation):
      'r_ph'    : False, 'r_q2r'   : False, 
      'r_matdyn': False, 'r_lambda': False}
 
-    variables = [['routine'], ['qe_programs'], ['pseudo_folder'], ['np', 'nk'], ['coarse_div', 'coarse_off', 
-              'qpoints_div', 'qpoints_off', 'dense_div', 'dense_off', 'kdistance', 'qdistance',
-              'calc'], ['restart_mode', 'occupations', 'smearing', 'degauss', 'conv_thr'], 
-              ['tr2_ph', 'ldisp', 'recover', 'electron_phonon', 'el_ph_sigma', 'el_ph_nsigma'],
-              ['zasr', 'la2F'], ['asr', 'la2F', 'dos', 'nk1', 'nk2', 'nk3', 'ndos'], 
-              ['sigma_omega', 'mu']]
-    
-    sufix = 'TC'
+    variables = []
 
-    def __init__(self, strtucture):
-        ICalculation.__init__(self, strtucture = strtucture)
+    grid_variable = ['coarse_div', 'coarse_off', 'qpoints_div', 'qpoints_off', 'dense_div', 
+                     'dense_off', 'kdistance', 'qdistance', 'calc']
+
+    pw1    = Pwscf1()
+    pw2    = Pwscf2()
+    ph     = Phonon()
+    q2r    = Q2r()
+    matdyn = Matdyn()
+    lamb   = Lambda()
+
+    programs = [pw2, ph, q2r, matdyn, lamb]         
+    
+    def __init__(self, structure):
+        ICalculation.__init__(self, structure = structure)
                               
     def _setVariables(self):
         
@@ -214,14 +230,14 @@ class CalcTC(AttrDisplay, ICalculation):
     def _setPrograms(self): 
       
         self.mpi    = Mpi()
-        self.pw1    = Pwscf1(prefix= self.prefix, grid= self.grids.dense, 
-                            cell= self.cell, pseudo= self.pseudo)
-        self.pw2    = Pwscf2(prefix= self.prefix, grid= self.grids.coarse, 
-                            cell= self.cell, pseudo= self.pseudo)
+        self.pw1    = Pwscf(prefix= self.prefix, grid= self.grids.dense, 
+                            cell= self.cell, pseudo= self.pseudo, name= 'scf1')
+        self.pw2    = Pwscf(prefix= self.prefix, grid= self.grids.coarse, 
+                            cell= self.cell, pseudo= self.pseudo, name = 'scf2')
         self.ph     = Phonon(prefix= self.prefix, grid= self.grids.qpoints)
         self.q2r    = Q2r(prefix= self.prefix)
         self.matdyn = Matdyn(prefix= self.prefix)
-        self.lamb   = Lambda(prefix= self.prefix)
+        self.lamb   = Lambda(prefix= self.prefix, dyndir = self.dir.calc)
 
         for obj in [self.mpi, self.pw1, self.pw2, self.ph, self.q2r, self.matdyn, self.lamb]:
             obj.load(database= self.database.file)
@@ -264,7 +280,7 @@ class CalcTC(AttrDisplay, ICalculation):
 
         #pseudo - pseudo potentials' folder path
         db.dcreate('pseudo')
-        db.dadd('pseudo',('pseudo_folder','/home/camila/Documentos/EMA/Program-TC/pseudo/USPP') )
+        db.dadd('pseudo',('pseudo_folder','Program-TC/pseudo/USPP') )
 
         #mpi - parallen running description
         db.dcreate ('mpi')
@@ -327,16 +343,19 @@ class CalcTC(AttrDisplay, ICalculation):
 
 class CalcEnergy(AttrDisplay, ICalculation):
 
+    sufix = 'EN'
+
     calc_stage = {'w_scf'  : False, 
                   'r_scf'  : False}
 
-    variables = [['routine'], ['qe_programs'], ['pseudo_folder'], ['np', 'nk'], ['kpoints_div', 'coarse_off', 
-              'kpoints_off'], ['restart_mode', 'occupations', 'smearing', 'degauss', 'conv_thr']]
-    
-    sufix = 'EN'
+    grid_variable = ['kpoints_div', 'kpoints_off']
 
-    def __init__(self, strtucture):
-        ICalculation.__init__(self, strtucture = strtucture)
+    pw = Pwscf()
+
+    programs = [pw]
+
+    def __init__(self, structure):
+        ICalculation.__init__(self, structure = structure)
                               
     def _setVariables(self):
         
@@ -393,7 +412,7 @@ class CalcEnergy(AttrDisplay, ICalculation):
 
         #pseudo - pseudo potentials' folder path
         db.dcreate('pseudo')
-        db.dadd('pseudo',('pseudo_folder','/home/camila/Documentos/EMA/Program-TC/pseudo/USPP') )
+        db.dadd('pseudo',('pseudo_folder','Program-TC/pseudo/USPP') )
 
         #mpi - parallen running description
         db.dcreate ('mpi')
@@ -421,16 +440,17 @@ class CalcEnergy(AttrDisplay, ICalculation):
 class CalcPhonon(AttrDisplay, ICalculation):
     calc_stage = {'w_scf': False, 'w_ph': False, 
                   'r_scf': False, 'r_ph': False}
-
-    variables = [['routine'], ['qe_programs'], ['pseudo_folder'], ['np', 'nk'], ['kpoints_div', 'coarse_off', 
-              'kpoints_off'], ['restart_mode', 'occupations', 'smearing', 'degauss', 'conv_thr'], 
-              ['tr2_ph', 'electron_phonon', 'el_ph_sigma', 'el_ph_nsigma']]
-    
     sufix = 'PH'
+    
+    grid_variable = ['kpoints_div', 'coarse_off', 'kpoints_off']
 
-    def __init__(self, strtucture):
-        ICalculation.__init__(self, strtucture = strtucture)
-                              
+    pw    = Pwscf1()
+    ph    = Phonon()
+    programs = [pw, ph] 
+    
+    def __init__(self, structure):
+        ICalculation.__init__(self, structure = structure)
+        
     def _setVariables(self):
         
         self.pseudo = Pseudo()
@@ -487,7 +507,7 @@ class CalcPhonon(AttrDisplay, ICalculation):
 
         #pseudo - pseudo potentials' folder path
         db.dcreate('pseudo')
-        db.dadd('pseudo',('pseudo_folder','/home/camila/Documentos/EMA/Program-TC/pseudo/USPP') )
+        db.dadd('pseudo',('pseudo_folder','Program-TC/pseudo/USPP') )
 
         #mpi - parallen running description
         db.dcreate ('mpi')
@@ -511,7 +531,6 @@ class CalcPhonon(AttrDisplay, ICalculation):
         db.dadd('pw_par',('conv_thr',1e-10) )
 
         db.dcreate ('ph_par')
-
 
         db.dadd('ph_par',('tr2_ph',1e-12) )
         db.dadd('ph_par',('electron_phonon','interpolated') )

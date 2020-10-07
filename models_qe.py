@@ -14,19 +14,14 @@
 
 This module provide class interfaces for quantum espresso programs
 """
-
-from classtools import AttrDisplay
-from tools import WriteStrategy
-from models_program import CellStructure
-from models_program import Database
-
-import ase
-import ase.io
 import os
-import pickledb as pk
 import subprocess
 import sys
-        
+import pickledb as pk
+
+import tools 
+from classtools import AttrDisplay
+from models_program import CellStructure
 
 class Pseudo(AttrDisplay):
     db_dict = 'pseudo'
@@ -62,7 +57,6 @@ class Pseudo(AttrDisplay):
         db.dadd(self.db_dict,('pseudo_folder', self.folder))
         db.dump()
 
-
 class Grid(AttrDisplay):
     db_dict = 'grid'
 
@@ -70,10 +64,6 @@ class Grid(AttrDisplay):
         self.name = name
         self.div = div
         self.off = off
-
-    def setGrid(self, div, off = (0,0,0)):
-        self.div = tuple(div)
-        self.off = tuple(off)
 
     def load(self, database):
         db = pk.load( database, False)
@@ -85,7 +75,6 @@ class Grid(AttrDisplay):
         db.dadd(self.db_dict,(self.name+'_div', self.div))
         db.dadd(self.db_dict,(self.name+'_off', self.off))
         db.dump()
-
 
 class Mpi(AttrDisplay):
     """
@@ -106,33 +95,39 @@ class Mpi(AttrDisplay):
     
     def dump(self, database):
         db = pk.load(database, False)
-        db.dcreate (self.database)
         db.dadd(self.db_dict,('np', self.np) )
         db.dadd(self.db_dict,('nk', self.nk) )
-        db.dump()
-        
+        db.dump()        
 
-class IProgram(AttrDisplay):
+class IQuantumEspresso(AttrDisplay):
 
-    write_method = WriteStrategy()
-
-    name = None
+    write_strategy = tools.IWriteStrategy()
     program = None
-    file_order = None
+    db_dct = None
+    variables = None
     section = 'input'
 
-    def __init__(self, prefix):  
-        assert self.file_order, 'File parameters order must be defined!'
-        assert self.name, "Files' name must be defined!"
+    def __init__(self, **keyargs):  
+        assert self.variables, 'File parameters order must be defined!'
         assert self.program, 'Program name must be defined!'
-            
-        self.db_dict = self.program.replace('.x','_par')
-        self.input =  prefix + '.' + self.name + '.in'
-        self.output =  prefix + '.' + self.name + '.out'
-        self.parameters = {}
-        self._setParameters(prefix)
+        assert self.db_dict, 'Database dict string name must be defined!'
 
-    def _setParameters(self, prefix):
+        if len(keyargs) > 0:
+            self.parameters(**keyargs)
+
+    def parameters(self, prefix, name = None):
+
+        if name:
+            self.name = name
+        else:
+            self.name = self.program.replace('.x','') 
+
+        self.input =  prefix + '.' + self.name + '.in'
+        self.output =  prefix + '.' + self.name + '.out'   
+        self.parameters = {}
+        self._prefixParameters(prefix)
+    
+    def _prefixParameters(self, prefix):
         assert False, '"setParameters must be defined!"'
 
     def set_Dir (self, dir):
@@ -141,7 +136,7 @@ class IProgram(AttrDisplay):
         self.calc = dir.calc
 
     def _command(self, mpi):
-        command = 'mpiexec' + ' -np ' + mpi.np + ' ' + self.program +' -nk ' + mpi.nk + ' -in ' + self.input
+        command = 'mpiexec'+' -np '+mpi.np+' '+self.program+' -nk '+ mpi.nk+' -in '+self.input
         return command
     
     def load(self, database):
@@ -177,26 +172,28 @@ class IProgram(AttrDisplay):
             print(text.format(program_txt = self.name))
 
     def write(self):
-        self.write_method.section_single(section = self.section, 
-                                        f_input = self.input, 
-                                        file_order = self.file_order, 
-                                        parameters = self.parameters)
+        self.write_strategy.write(section = self.section, 
+                                 filename = self.input, 
+                                 file_order = self.variables, 
+                                 parameters = self.parameters)
 
-class Pwscf (IProgram):
-    name = 'scf'
+class Pwscf (IQuantumEspresso):
+    write_strategy = tools.WriteScf()
     program = 'pw.x'
-    file_order = ['prefix','restart_mode','pseudo_dir','outdir','occupations',
-                 'smearing','degauss','ecutwfc','ecutrho','conv_thr']
+    db_dict = 'pw_par'
+    variables = ['prefix','restart_mode','pseudo_dir','outdir','occupations',
+                 'smearing','degauss','ecutwfc','ecutrho','conv_thr', 'la2F']
     
-    def __init__(self, prefix, pseudo, cell, grid):
-        IProgram.__init__(self, prefix= prefix)
+    def parameters(self, prefix, pseudo, cell, grid, name = None):
+        IQuantumEspresso.parameters(self, prefix= prefix, name= name)
         self.grid = grid
         self.cell = cell
-        self.pseudo = pseudo.selectFiles(cell.elements)
-        self.parameters.update({'pseudo_dir': pseudo.folder})
-        self._setEcut()
+        if cell:
+            self.pseudo = pseudo.selectFiles(cell.elements)
+            self.parameters.update({'pseudo_dir': pseudo.folder})
+            self._setEcut()
 
-    def _setParameters(self, prefix):
+    def _prefixParameters(self, prefix):
         self.parameters.update({'prefix': prefix})
         self.parameters.update({'outdir': './out'})
 
@@ -228,64 +225,63 @@ class Pwscf (IProgram):
         self.parameters.update({'ecutrho': ecutrho})
 
     def write(self):
-        ase.io.write(filename = self.input,
-                     images = self.cell.structure,
-                     format = 'espresso-in',
-                     input_data = self.parameters,
-                     pseudopotentials = self.pseudo,
-                     kpts = self.grid.div,
-                     koffset = self.grid.off )
-            
+        self.write_strategy.write(filename = self.input,
+                                images = self.cell.structure,
+                                input_data = self.parameters,
+                                pseudopotentials = self.pseudo,
+                                kpts = self.grid.div,
+                                koffset = self.grid.off)
+
 class Pwscf1(Pwscf):
-    name = 'scf1'
 
     def write(self):
         Pwscf.write(self)
-        self.write_method.addParameter(key= 'la2F', value = '.true.', 
-                           section = 'system', f_input = self.input)
+        self.write_strategy.addParameter(key= 'la2F', value = '.true.', 
+                                         section = 'system', filename = self.input)
 
-class Pwscf2(Pwscf):
-    name = 'scf2'
+class Phonon (IQuantumEspresso):
 
-class Phonon (IProgram):
-    name  = 'ph'
+    write_strategy = tools.WriteSection()
+    
     program = 'ph.x'
-    file_order = ['prefix', 'outdir', 'tr2_ph', 'fildyn','ldisp', 'nq1',
-                  'nq2', 'nq3', 'electron_phonon','fildvscf','recover', 'el_ph_sigma', 
-                  'el_ph_nsigma']
+    db_dict = 'ph_par'
+
+    variables = ['prefix', 'outdir', 'tr2_ph', 'fildyn','ldisp', 'nq1', 'nq2', 'nq3', 
+                  'electron_phonon','fildvscf','recover', 'el_ph_sigma', 'el_ph_nsigma']
+                
     section = 'inputph'
 
-    def __init__(self, prefix, grid = None):
-        self.grid = grid
-        IProgram.__init__(self, prefix= prefix)
+    def parameters(self, prefix, name = None, grid = None, vector= None):
+        IQuantumEspresso.parameters(self, prefix= prefix, name = name)
+        self.vector = vector
+        if grid:
+            self.parameters.update({'nq1': grid.div[0]})
+            self.parameters.update({'nq2': grid.div[1]})
+            self.parameters.update({'nq3': grid.div[2]})
 
-    def _setParameters(self, prefix):
+    def _prefixParameters(self, prefix):
         self.parameters.update({'prefix': prefix})
         self.parameters.update({'outdir': './out'})
         self.parameters.update({'fildyn': prefix+'.dyn'})
         self.parameters.update({'fildvscf': prefix+'.dv'})
-        if self.grid:
-            self.parameters.update({'nq1': self.grid.div[0]})
-            self.parameters.update({'nq2': self.grid.div[1]})
-            self.parameters.update({'nq3': self.grid.div[2]})
-        else:
-            self.file_order.remove('nq1')
-            self.file_order.remove('nq2')
-            self.file_order.remove('nq3')
-    
-    def write(self):
-        IProgram.write(self)
-        if not(self.grid):
-            self.write_method.addLine(line= '0.0 0.0 0.0', 
-                                      position= '/\n', 
-                                      f_input= self.input)
 
-class Q2r (IProgram):
-    name  = 'q2r'
+    def write(self):
+        IQuantumEspresso.write(self)
+        if self.vector:
+            self.write_strategy.addLine(line= self.vector, 
+                                       position= '/\n', 
+                                       filename= self.input)
+
+class Q2r (IQuantumEspresso):
+
+    write_strategy = tools.WriteSection()
+
     program = 'q2r.x'
-    file_order = ['zasr', 'fildyn', 'flfrc', 'la2F']
-    
-    def _setParameters(self, prefix):
+    db_dict = 'q2r_par'
+
+    variables = ['zasr', 'fildyn', 'flfrc', 'la2F']
+
+    def _prefixParameters(self, prefix):
         self.parameters.update({'fildyn': prefix+'.dyn'})
         self.parameters.update({'flfrc': prefix+'.frc'})
     
@@ -293,13 +289,17 @@ class Q2r (IProgram):
         command = self.program + ' < ' + self.input
         return command
 
-class Matdyn (IProgram):
-    name = 'matdyn'
+class Matdyn (IQuantumEspresso):
+
+    write_strategy = tools.WriteSection()
+
     program = 'matdyn.x'
-    file_order = ['asr', 'flfrc', 'flfrq', 'la2F', 'dos', 'fldos', 'nk1',
+    db_dict = 'matdyn_par'
+
+    variables = ['asr', 'flfrc', 'flfrq', 'la2F', 'dos', 'fldos', 'nk1',
                   'nk2','nk3','ndos']
 
-    def _setParameters(self, prefix):
+    def _prefixParameters(self, prefix):
         self.parameters.update({'flfrc': prefix+'.frc'})
         self.parameters.update({'flfrq': prefix+'.freq'})
         self.parameters.update({'fldos': prefix+'.phonon.dos'})
@@ -308,12 +308,20 @@ class Matdyn (IProgram):
         command = 'mpiexec'+' -np '+ mpi.np +' '+ self.program +' -in '+ self.input
         return command
 
-class Lambda (IProgram):
-    name = 'lambda'
-    program = 'lambda.x'
-    file_order = ['zasr', 'fildyn', 'flfrc', 'la2F']
+class Lambda (IQuantumEspresso):
 
-    def _setParameters(self, prefix):
+    write_strategy = tools.WriteLambda()
+
+    program = 'lambda.x'
+    db_dict = 'lambda_par'
+
+    variables = ['zasr', 'fildyn', 'flfrc', 'la2F']
+
+    def parameters(self, prefix, name = None, dyndir= ''):
+        IQuantumEspresso.parameters(self, prefix= prefix, name = name)
+        self.dyndir = dyndir
+
+    def _prefixParameters(self, prefix):
         self.parameters.update({'fildyn': prefix+'.dyn'})
 
     def _command(self, mpi):
@@ -321,96 +329,88 @@ class Lambda (IProgram):
         return command
 
     def write(self):
-
-        current_dir = os.getcwd()
-        os.chdir(os.path.join(current_dir, self.calc))
-        q_info, q_num = self._getQPoints()
-        dyn_info = self._readFiles(prefix= self.parameters.get('fildyn'),
-                                         sufix_list= range(1, q_num+1))
-        os.chdir(current_dir)
-
-        multiplicity = self._getMultplicity(dyn_files = dyn_info)
-        up_freq = self._getUpperFreq(dyn_files = dyn_info)
-
-        part_1 = str(up_freq)+'  '+str(self.parameters.get('sigma_omega'))+'  1\n'
-
-        part_2 = q_info
-        for i in range(1,q_num+1):
-            sufix = '  '+str(multiplicity[i-1]) +'\n'
-            part_2[i] = part_2[i].replace('\n', sufix)
-
-        part_3 = []
-        aux = 'elph_dir/elph.inp_lambda.'
-        for num in range(1,q_num+1):
-            line = aux + str(num) + '\n'
-            part_3.append(line)
-        part_3.append(str(self.parameters.get('mu'))+'\n')
-
-        lambda_info =[]
-        lambda_info.append(part_1)
-        lambda_info.extend(part_2)
-        lambda_info.extend(part_3)
-
-        with open(self.input, 'w') as f:     
-            for line in lambda_info:
-                f.write(line)
-
-    def _getMultplicity(self, dyn_files):
-        multiplicity_values = []
-        for element in dyn_files:
-            multiplicity = 0
-            for line in element:
-                if line.find('Dynamical  Matrix in cartesian axes') > -1:
-                    multiplicity += 1
-            multiplicity_values.append(multiplicity)
-
-        return multiplicity_values
-
-    def _getUpperFreq(self, dyn_files):
-        freq_info = []
-        for element in dyn_files:
-            for line in element:
-                if line.find('freq') > -1:
-                    freq = line.split('=')[1]
-                    freq = freq.replace('[THz]','').strip()
-                    freq_info.append(float(freq))
-            
-        max_freq = max(freq_info)
-        upper_freq = int(max_freq+1)
-
-        return upper_freq
-
-    def _readFiles(self, prefix, sufix_list):
-        info = []
-        for suf in sufix_list:
-            file_name = prefix + str(suf)
-            with open(file_name) as f:
-                content = f.readlines()
-            info.append(content)
-
-        return info
-    
-    def _getQPoints(self):
-        file_name = self.parameters.get('fildyn') + '0'
-        with open(file_name, 'r') as f:
-            content = f.readlines()
-            content.pop(0)
-        q_info = content 
-        q_num = int(q_info[0])
-
-        return q_info, q_num
+        self.write_strategy.write(filename= self.input, 
+                                  dyndir= self.dyndir,
+                                  sigma_omega= self.parameters.get('sigma_omega'), 
+                                  mu= self.parameters.get('mu'), 
+                                  fildyn= self.parameters.get('fildyn'))    
 
 ################################################################################
 ##----------------------------------------------------------------------------##
 ################################################################################
 
 if __name__ == '__main__':    
+        
+    #Unit Tests
+    database = 'Nb_config.db'
     
-    database = '/home/camila/Documentos/EMA/Program-TC/H3S-200GPa/H3S-200GPa_config.db'
-    prefix = 'H3S'
-    cell = CellStructure('/home/camila/Documentos/EMA/Program-TC/cif_database/H3S-200GPa.cif')
+    #Test class Pseudopotentials
+    pseudo = Pseudo()
+    print('\nTEST PSEUDO\n')
+    print('\nTEST 1: criate empty pseudo obj\n', pseudo)
 
-    mpi    = Mpi()
+    pseudo = Pseudo(folder= 'pseudo')
+    print('\nTEST 2: criate pseudo obj from folder of pseudopotential files:\n', pseudo)
+    
+    selection = pseudo.selectFiles(['Nb','H'])
+    print('\nTEST 3: select pseudopotentials form list of elements\n', selection)
+
+    pseudo.dump(database= database)
+    pseudo2 = Pseudo()
+    pseudo2.load(database= database)
+    print('\nTEST 4: dump and load from database\n', pseudo2)
+
+    
+    #Test class Grid
+    print('\nTEST GRID\n')
+
+    print('\nTEST 1: criate grid obj and dump at database\n')
+
+    kgrid = Grid('dense', div=(18,18,18))
+    cgrid = Grid('coarse', div=(9,9,9))
+    qgrid = Grid('qpoints', div=(3,3,3))
+
+    for obj in [kgrid, cgrid, qgrid]:
+        print(obj.name, ':', obj)
+        obj.dump(database= database)
+
+    print('\nTEST 2: criate empty grid obj and load from database\n')
+
+    kgrid2 = Grid('dense')
+    cgrid2 = Grid('coarse')
+    qgrid2 = Grid('qpoints')
+
+    for obj in [kgrid2, cgrid2, qgrid2]:
+        print(obj.name, ':', obj)
+        obj.load(database= database)
+        print(obj.name, ':', obj)
+
+    
+    #Test class Mpi
+    print('\nTEST MPI\n')
+
+    print('\nTEST 1: criate mpi obj and dump at database\n')
+ 
+    mpi = Mpi(nk= 3,np= 3)
+    print(mpi)
+    mpi.dump(database= database)
+
+    print('\nTEST 2: criate empty mpi obj and load from database\n')
+
+    mpi = Mpi()
+    print(mpi)
+    mpi.load(database= database)
+    print(mpi)   
+     
+    #Test classes inheritated from IQuantumEspresso
+    print('\nTEST IQE PROGRAMS\n')
+
+    #load input information for porgrams
+    database = 'Nb_config.db'
+    prefix = 'Nb'
+    cell = CellStructure('Nb.cif')
+
+    mpi = Mpi()
     pseudo = Pseudo()
     grid1  = Grid('dense')
     grid2  = Grid('coarse')
@@ -419,8 +419,10 @@ if __name__ == '__main__':
     for obj in [pseudo, grid1, grid2, qgrid, mpi]:
         obj.load(database= database)
 
-    pw1    = Pwscf1(prefix= prefix, grid= grid1, cell= cell, pseudo= pseudo)
-    pw2    = Pwscf2(prefix= prefix, grid= grid2, cell= cell, pseudo= pseudo)
+    print("\nTEST 1: criate program's objs and load from database\n")
+
+    pw1    = Pwscf1(prefix= prefix, name= 'scf1', grid= grid1, cell= cell, pseudo= pseudo)
+    pw2    = Pwscf(prefix= prefix, name= 'scf2', grid= grid2, cell= cell, pseudo= pseudo)
     ph     = Phonon(prefix= prefix, grid= qgrid)
     q2r    = Q2r(prefix= prefix)
     matdyn = Matdyn(prefix= prefix)
@@ -428,15 +430,17 @@ if __name__ == '__main__':
 
     for obj in [pw1, pw2, ph, q2r, matdyn, lamb]:
         obj.load(database= database)
-    
-    print("-> Test object's construction \n")
-    for obj in [mpi, cell, pseudo, grid1, grid2, pw1, pw2, ph, q2r, matdyn, lamb]:        
         print(obj, '\n')
-
-    print('-> Test CellStructure methods \n')
-    cell.copyFile()
-
-    print('-> Test Programs methods \n')
-    for program in [pw1, pw2, ph, q2r, matdyn, lamb]:
+    
+    print("\nTEST 2: write program's input files\n")
+    for program in [pw1, pw2, ph, q2r, matdyn]:
         program.write()
+
+    print("\nTEST 3: run program's input files\n")
+    for program in [pw1, pw2, ph, q2r, matdyn]:
         program.run(mpi=mpi)
+
+    print("\nTEST 4: write and run lambda input files\n")
+    lamb.write()
+    lamb.run(mpi=mpi)
+    

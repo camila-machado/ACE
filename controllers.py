@@ -76,8 +76,9 @@ class DatabaseFactory():
         for i in range(len(sections)):
             db.dcreate(sections[i])
             for key in keys[i]:
-                value = parameters[i].get(key)
-                db.dadd(sections[i], (key, value))
+                value = parameters[i].get(key, False)
+                if value:
+                    db.dadd(sections[i], (key, value))
         
         db_dir = os.path.join(os.getcwd(), db_name)
 
@@ -178,11 +179,11 @@ class ControllerProgram(AttrDisplay):
     def _set_calc_routine(self, clmode):
 
         if clmode == 'TC':
-            routine = CalcTC(strtucture= self.cell)
+            routine = CalcTC(structure= self.cell)
         elif clmode == 'EN':
-            routine = CalcEnergy(strtucture= self.cell)
+            routine = CalcEnergy(structure= self.cell)
         elif clmode == 'PH':
-            routine = CalcPhonon(strtucture= self.cell)
+            routine = CalcPhonon(structure= self.cell)
         return routine
 
     def calculate(self):
