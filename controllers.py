@@ -20,10 +20,8 @@ from models_program import Database
 from models_program import Directory
 from models_program import InputVariables
 
-from calculations_qe import CalcTC
-from calculations_qe import CalcEnergy
-from calculations_qe import CalcPhonon
-from tools import WriteStrategy
+import calculations_qe as calc_qe
+import tools
 from pathlib import PurePath
 
 import os
@@ -48,7 +46,7 @@ class DatabaseFactory():
                 database= self._new(inputvar= inputvar, db_name= db_name, 
                                             keys= calc.variables)
             else:
-                database= self._general(db_name= db_name, calc= calc)
+                database = calc.makeDatabase(name = db_name)
 
         return database
 
@@ -66,8 +64,7 @@ class DatabaseFactory():
 
     def _new(self, inputvar, db_name, keys):
 
-        sections= inputvar.sections 
-        parameters= inputvar.parameters 
+        sections, parameters = inputvar.read()
 
         _DATABASE = db_name
 
@@ -85,16 +82,7 @@ class DatabaseFactory():
         database = Database(infile= db_dir)
 
         return database
-
-    def _general(self, db_name, calc):
-        work_dir = os.getcwd()
         
-        db = calc.makeDatabase(name = db_name)
-    
-        db.dump()
-        database = Database(os.path.join(work_dir, db_name))
-
-        return database
 
 class DirectoryFactory:
 
@@ -104,7 +92,7 @@ class DirectoryFactory:
 
         if op == 'c':
             directory = self._copy(infile= infile)
-            return directory
+#           return directory
 
         elif op == 'n': 
             directory = self._new(name = dir_name)
@@ -117,22 +105,22 @@ class DirectoryFactory:
 
         return directory
 
+    def _copy(self, infile):
+        return Directory(workpath= infile.dir) 
+
     def _new(self, name):
         work_path = os.path.join(os.getcwd(), name)
         work_path = self._ver_path_exist(path= work_path)
          
-        return Directory(work_path= work_path)
+        return Directory(workpath= work_path)
 
     def _overwrite(self, name):
         work_path = os.path.join(os.getcwd(), name)
-        directory = Directory(work_path= work_path)
+        directory = Directory(workpath= work_path)
         if os.path.exists(work_path):
             directory.delete()
         
         return directory
-
-    def _copy(self, infile):
-        return Directory(work_path= infile.dir) 
 
     def _ver_path_exist(self, path):
         exist = os.path.exists(path)
@@ -144,7 +132,7 @@ class DirectoryFactory:
 
 class ControllerProgram(AttrDisplay):
     
-    write_method = WriteStrategy()
+    write_method = tools.WriteSections()
     drfactory = DirectoryFactory()
     dbfactory = DatabaseFactory()
 
@@ -179,26 +167,27 @@ class ControllerProgram(AttrDisplay):
     def _set_calc_routine(self, clmode):
 
         if clmode == 'TC':
-            routine = CalcTC(structure= self.cell)
+            routine = calc_qe.TC(structure= self.cell)
         elif clmode == 'EN':
-            routine = CalcEnergy(structure= self.cell)
+            routine = calc_qe.Energy(structure= self.cell)
         elif clmode == 'PH':
-            routine = CalcPhonon(structure= self.cell)
+            routine = calc_qe.PhononGamma(structure= self.cell)
         return routine
 
     def calculate(self):
     
-        self.routine.dir = self.drfactory.make(op=self.opmode, 
+        self.routine.directory = self.drfactory.make(op=self.opmode, 
                                                prefix= self.prefix, 
                                                infile= self.cell,
                                                calc= self.routine)
         
-        os.chdir(self.routine.dir.work)
+        os.chdir(self.routine.directory.work)
         self.cell.copy()
         self.routine.database= self.dbfactory.make(op=self.opmode, 
                                                    prefix= self.prefix, 
                                                    inputvar= self.inputvar, 
                                                    calc= self.routine)
+                                                   
         if self.inputvar:
             self.inputvar.copy()
             self.inputvar.rename(name= self.routine.input_name)
@@ -207,7 +196,7 @@ class ControllerProgram(AttrDisplay):
                             name= self.routine.input_name)
         
         try:       
-            self.routine.load(database= self.routine.database.file)
+            self.routine.load(database= self.routine.database.path)
         except KeyError:
             pass
         except Exception:
@@ -217,7 +206,7 @@ class ControllerProgram(AttrDisplay):
 
     def _make_inputvar(self, database, name):
         sections, parameters, keys = database.read()
-        self.write_method.sections(section= sections, f_input= name, 
+        self.write_method.write(section= sections, filename= name, 
                                file_order=keys, parameters= parameters)
     
 
@@ -271,8 +260,6 @@ class ControllerProgram(AttrDisplay):
             mode = command, description = commands_valid.get(command)))
 
         return command  
-
-    
 
 ################################################################################
 ##----------------------------------------------------------------------------##

@@ -1,0 +1,34 @@
+&CONTROL
+   outdir           = '/out'
+   prefix           = 'Nb'
+   pseudo_dir       = '/'
+/
+&SYSTEM
+   ecutwfc          = 50
+   ecutrho          = 50
+   occupations      = 'smearing'
+   ntyp             = 1
+   nat              = 1
+   ibrav            = 0
+/
+&ELECTRONS
+/
+&IONS
+/
+&CELL
+/
+
+ATOMIC_SPECIES
+Nb 92.90637 Nb.pbe-spn-rrkjus_psl.1.0.0.UPF
+
+K_POINTS automatic
+3 3 3  0 0 0
+
+CELL_PARAMETERS angstrom
+-1.65200000000000 1.65200000000000 1.65200000000000
+1.65200000000000 -1.65200000000000 1.65200000000000
+1.65200000000000 1.65200000000000 -1.65200000000000
+
+ATOMIC_POSITIONS angstrom
+Nb 0.0000000000 0.0000000000 0.0000000000 
+

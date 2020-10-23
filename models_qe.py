@@ -27,10 +27,19 @@ class Pseudo(AttrDisplay):
     db_dict = 'pseudo'
 
     def __init__(self, folder = None):
-        self.folder = folder
-        if self.folder:
+        
+        if folder:
+            folder = self._checkfolder(path= folder)
+            self.folder = folder
             self._setFiles()
     
+    def _checkfolder(self, path):
+        folder = os.path.join(os.getcwd(), path)
+        folder = os.path.normpath(folder)
+        assert os.path.isdir(folder), 'This is not an existing directory'
+     
+        return folder
+
     def _setFiles(self):     
         pseudo_files = os.listdir(self.folder)
         self.files = {}
@@ -48,7 +57,9 @@ class Pseudo(AttrDisplay):
 
     def load (self, database):
         db = pk.load(database, False)
-        self.folder = db.dget(self.db_dict,'pseudo_folder')
+        folder =  db.dget(self.db_dict,'pseudo_folder')
+        folder = self._checkfolder(path= folder)
+        self.folder = folder
         self._setFiles()
         db.dump()
     
@@ -189,7 +200,7 @@ class Pwscf (IQuantumEspresso):
         self.grid = grid
         self.cell = cell
         if cell:
-            self.pseudo = pseudo.selectFiles(cell.elements)
+            self.pseudo = pseudo.selectFiles(cell.elements())
             self.parameters.update({'pseudo_dir': pseudo.folder})
             self._setEcut()
 
@@ -226,7 +237,7 @@ class Pwscf (IQuantumEspresso):
 
     def write(self):
         self.write_strategy.write(filename = self.input,
-                                images = self.cell.structure,
+                                images = self.cell.read(),
                                 input_data = self.parameters,
                                 pseudopotentials = self.pseudo,
                                 kpts = self.grid.div,
@@ -359,8 +370,7 @@ if __name__ == '__main__':
     pseudo2 = Pseudo()
     pseudo2.load(database= database)
     print('\nTEST 4: dump and load from database\n', pseudo2)
-
-    
+   
     #Test class Grid
     print('\nTEST GRID\n')
 
