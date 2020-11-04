@@ -19,7 +19,7 @@ from controllers import ControllerProgram
 
 start_time = time.time()
 
-EN = ControllerProgram(clmode = 'EN')
-EN.calculate()
+EOS = ControllerProgram(clmode = 'EOS')
+EOS.calculate()
 
 print('\nTotal execution time:', time.time()-start_time)

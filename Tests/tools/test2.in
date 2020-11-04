@@ -1,0 +1,10 @@
+&INPUT_NUM
+   var1             = 1
+   var2             = 2
+   var3             = 3
+/
+&INPUT_ABC
+   varA             = 'a'
+   varB             = 'b'
+   varC             = 'c'
+/

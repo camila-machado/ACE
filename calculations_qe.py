@@ -16,73 +16,71 @@ This module provides class interfaces to calculate the superconductivity
 critical temperature using quantum espresso programs and qeporgrams module.
 """
 import numpy as np
-from models_qe import*
-from models_program import*
-from tools import WriteStrategy
+import os
 
-class ICalculation():
+import ase
+import ase.build
+import ase.calculators.espresso 
+import ase.eos
+import ase.io
+import ase.io.trajectory
+import ase.units
+import pickledb as pk
 
-    db_dict = 'calc_stage'
-    calc_stage = None
-    variables = None
-    sufix = None
+from classtools import AttrDisplay
+import models_qe as qe
+import models_program as prg
+import tools
 
-    def __init__(self, strtucture):
-        assert self.calc_stage, 'Calculation satages must be defined!'
-        assert self.variables, 'Variables must be defined!'
-        assert self.sufix, 'Input sufix must be defined!'
+class CellCompression(AttrDisplay):
+    db_dict = 'compression'
 
-        self.cell = strtucture
-        self.prefix = strtucture.name
-        self.input_name = self.prefix + '.' + self.sufix + '.in'
+    def __init__(self, atoms, init= 0.8, final= 1.2, n=10):
+        self.atoms = atoms
+        self.init = init
+        self.final = final
+        self.n = n
 
-    def calculate(self):
-        assert self.database, 'Database must be defined'
-        assert self.database, 'Directory must be defined'
+    def compress(self):
+        atoms = self.atoms
+        cell = atoms.get_cell()
+        
+        compress_atoms = []
+        for x in np.linspace(self.init, self.final, self.n):
+            atoms.set_cell(cell * x, scale_atoms=True)
+            compress_atoms.append(atoms)
 
-        os.chdir(self.dir.work)
-        self._setVariables()
-        self._setPrograms()
-        self._runPrograms()
-
-    def _setVariables(self):
-        assert False, '_setVariables() must be defined!'
+        return compress_atoms
     
-    def _setPrograms(self):
-        assert False, '_setPrograms() must be defined!'
-
-    def _runPrograms(self):
-        assert False, '_runPrograms() must be defined!'
-
-    def makeDatabase(self):
-        assert False, 'generateDatabase() must be defined!'
-
     def load(self, database):
         db = pk.load(database, False)
-        self.calc_stage = db.dgetall(self.db_dict)
-    
+        self.init = float(db.dget(self.db_dict, 'init'))
+        self.final = float(db.dget(self.db_dict, 'final'))
+        self.n = int(db.dget(self.db_dict, 'n'))
+
     def dump(self, database):
         db = pk.load(database, False)
-        db.set(self.db_dict, self.calc_stage)
-        db.dump()       
+        db.dadd(self.db_dict,('n_init', self.n_init))
+        db.dadd(self.db_dict,('n_final', self.n_final))
+        db.dadd(self.db_dict,('n', self.n))
 
 class TcGridsWrapper(AttrDisplay):
     db_dict = 'grid'
 
-    def __init__(self, cell , kdistance = 0, qdistance = 0):
-        self.cell = cell
+    def __init__(self, atoms , kdistance = 0, qdistance = 0):
+        self.atoms = atoms
         self.kdistance = kdistance
         self.qdistance = qdistance
-        self.coarse = Grid('coarse')
-        self.dense = Grid('dense')
-        self.qpoints = Grid('qpoints')
+        self.coarse = qe.Grid('coarse')
+        self.dense = qe.Grid('dense')
+        self.qpoints = qe.Grid('qpoints')
 
     def calculate(self):
 
         print('\n-> Grids')
 
         if self.calc:
-            self.reciprocal  = self._calcReciprocalModule(cell= self.cell)
+            self.reciprocal  = self._calcReciprocalModule(atoms= self.atoms)
             self.minimalgrid = self._calcMinimalGrid(reciprocal= self.reciprocal)
             self.c_factor = self._calcGridFactor(distance= self.kdistance)
             self.q_factor = self._calcGridFactor(distance= self.qdistance)
@@ -97,12 +95,12 @@ class TcGridsWrapper(AttrDisplay):
 
             print('\nUsed input grids')
 
-    def _calcReciprocalModule(self, cell):
+    def _calcReciprocalModule(self, atoms):
         a = np.zeros((3,3)) #direct vectors
         b = np.zeros((3,3)) #reciprocal vectors
         nb = np.zeros(3)    #reciprocal vectors' modules
 
-        a = cell.structure.cell
+        a = atoms.cell
         
         pi = np.pi
         b[0] = 2*pi*np.cross(a[1],a[2])/np.dot(a[0],np.cross(a[1],a[2]))
@@ -150,9 +148,9 @@ class TcGridsWrapper(AttrDisplay):
         q_div = self._correctType(self.q_factor, self.minimalgrid)
         d_div = self._correctType(self.d_factor, self.minimalgrid)
 
-        self.coarse.setGrid(div = c_div)
-        self.qpoints.setGrid(div = q_div)
-        self.dense.setGrid(div = d_div)
+        self.coarse.div = tuple(c_div)
+        self.qpoints.div = tuple(q_div)
+        self.dense.div = tuple(d_div)
 
     def load(self, database):
         db = pk.load(database, False)
@@ -172,7 +170,91 @@ class TcGridsWrapper(AttrDisplay):
         self.dense.dump(database = database)       
         self.qpoints.dump(database = database)
 
-class CalcTC(AttrDisplay, ICalculation):
+
+class ICalculation():
+
+    db_strategy = tools.IMakeDatabase()
+    db_dict = 'calc_stage'
+    calc_stage = None
+    variables = [['routine'], ['qe_programs'], ['pseudo_folder'], ['np', 'nk']]
+    grid_variable = None
+    programs = None
+    sufix = None
+
+    def __init__(self, structure, prefix):
+        assert self.sufix, 'Input sufix must be defined!'
+        assert self.programs, 'Programs must be defined!'
+        assert self.calc_stage, 'Calculation satages must be defined!'
+        assert self.grid_variable, 'Variables must be defined!'
+
+        self.atoms = structure
+        self.prefix = prefix
+        self.input_name = self.prefix + '.' + self.sufix + '.in'
+
+        self.variables = ICalculation.variables
+        self.variables.append(self.grid_variable)
+
+        for prog in self.programs:
+            self.variables.append(prog.variables)
+
+    def calculate(self):
+        assert self.database, 'Database must be defined'
+        assert self.directory, 'Directory must be defined'
+   
+        current_dir = os.getcwd()
+
+        os.chdir(self.directory.work)
+        self._setVariables()
+        self._run()
+        self._output()
+
+        os.chdir(current_dir)
+
+    def _setVariables(self):
+        assert False, '_setVariables() must be defined!'
+
+    def _run(self):
+
+        print('\n-> Run programs\n')
+
+        for program in self.programs:
+            program.set_Dir(dir= self.directory)
+
+            if not(self.calc_stage.get('w_'+program.name)):
+                os.chdir(self.directory.input)
+                program.write()
+                self.calc_stage.update({'w_'+program.name:True})
+                self.dump(database= self.database.path)
+
+            if not (self.calc_stage.get('r_'+program.name)):
+                os.chdir(self.directory.calc)   
+                program.run(mpi=self.mpi)
+                self.calc_stage.update({'r_'+program.name:True})
+                self.dump(database= self.database.path)
+            else:
+                print('Check: {} fineshed'.format(program.name))
+        
+    def _output(self):
+        pass
+
+    def makeDatabase(self, name):
+        database = self.db_strategy.make_database(name = name)
+        return database
+
+    def load(self, database):   
+        db = pk.load(database, False)
+        self.calc_stage = db.dgetall(self.db_dict)
+
+    def dump(self, database):
+        db = pk.load(database, False)
+        db.set(self.db_dict, self.calc_stage)
+        db.dump()       
+
+class TC(AttrDisplay, ICalculation):
+
+    db_strategy = tools.TcDatabase()
+
+    sufix = 'TC'
 
     calc_stage = {'calc_grids': False, 
      'w_scf1'  : False,  'w_scf2' : False, 
@@ -182,349 +264,282 @@ class CalcTC(AttrDisplay, ICalculation):
      'r_ph'    : False, 'r_q2r'   : False, 
      'r_matdyn': False, 'r_lambda': False}
 
-    variables = [['routine'], ['qe_programs'], ['pseudo_folder'], ['np', 'nk'], ['coarse_div', 'coarse_off', 
-              'qpoints_div', 'qpoints_off', 'dense_div', 'dense_off', 'kdistance', 'qdistance',
-              'calc'], ['restart_mode', 'occupations', 'smearing', 'degauss', 'conv_thr'], 
-              ['tr2_ph', 'ldisp', 'recover', 'electron_phonon', 'el_ph_sigma', 'el_ph_nsigma'],
-              ['zasr', 'la2F'], ['asr', 'la2F', 'dos', 'nk1', 'nk2', 'nk3', 'ndos'], 
-              ['sigma_omega', 'mu']]
-    
-    sufix = 'TC'
+    variables = []
 
-    def __init__(self, strtucture):
-        ICalculation.__init__(self, strtucture = strtucture)
+    grid_variable = ['coarse_div', 'coarse_off', 'qpoints_div', 'qpoints_off', 'dense_div', 
+                     'dense_off', 'kdistance', 'qdistance', 'calc']
+
+    pw1    = qe.Pwscf1()
+    pw2    = qe.Pwscf()
+    ph     = qe.Phonon()
+    q2r    = qe.Q2r()
+    matdyn = qe.Matdyn()
+    lamb   = qe.Lambda()
+    programs = [pw2, ph, q2r, matdyn, lamb]         
+    
+    def __init__(self, structure, prefix):
+        ICalculation.__init__(self, structure = structure, prefix= prefix)
                               
     def _setVariables(self):
         
-        self.pseudo = Pseudo()   
-        self.pseudo.load(database= self.database.file)
+        pseudo = qe.Pseudo()   
+        pseudo.load(database= self.database.path)
 
-        self.grids = TcGridsWrapper(cell= self.cell)
-        self.grids.load(database= self.database.file)
+        grids = TcGridsWrapper(atoms= self.atoms)
+        grids.load(database= self.database.path)
 
         if not(self.calc_stage.get('calc_grids')):
-            self.grids.calculate()
-            self.grids.dump(database= self.database.file)
+            grids.calculate()
+            grids.dump(database= self.database.path)
             self.calc_stage.update({'calc_grids':True})
-            self.dump(database= self.database.file)
-        
+            self.dump(database= self.database.path)   
         else:
             print('Check: Grids fineshed')
-
-    def _setPrograms(self): 
       
-        self.mpi    = Mpi()
-        self.pw1    = Pwscf1(prefix= self.prefix, grid= self.grids.dense, 
-                            cell= self.cell, pseudo= self.pseudo)
-        self.pw2    = Pwscf2(prefix= self.prefix, grid= self.grids.coarse, 
-                            cell= self.cell, pseudo= self.pseudo)
-        self.ph     = Phonon(prefix= self.prefix, grid= self.grids.qpoints)
-        self.q2r    = Q2r(prefix= self.prefix)
-        self.matdyn = Matdyn(prefix= self.prefix)
-        self.lamb   = Lambda(prefix= self.prefix)
+        self.mpi    = qe.Mpi()
+        self.pw1    = qe.Pwscf1(prefix= self.prefix, grid= grids.dense, 
+                            atoms= self.atoms, pseudo= pseudo, name= 'scf1')
+        self.pw2    = qe.Pwscf(prefix= self.prefix, grid= grids.coarse, 
+                            atoms= self.atoms, pseudo= pseudo, name = 'scf2')
+        self.ph     = qe.Phonon(prefix= self.prefix, grid= grids.qpoints)
+        self.q2r    = qe.Q2r(prefix= self.prefix)
+        self.matdyn = qe.Matdyn(prefix= self.prefix)
+        self.lamb   = qe.Lambda(prefix= self.prefix, dyndir = self.directory.calc)
 
         for obj in [self.mpi, self.pw1, self.pw2, self.ph, self.q2r, self.matdyn, self.lamb]:
-            obj.load(database= self.database.file)
+            obj.load(database= self.database.path)
 
-    def _runPrograms(self):
+        self.programs = [self.pw1, self.pw2, self.ph, self.q2r, self.matdyn, self.lamb]
 
-        print('\n-> Run programs\n')
+class PhononGamma(AttrDisplay, ICalculation):
 
-        for program in [self.pw1, self.pw2, self.ph, self.q2r, self.matdyn, self.lamb]:
-            program.set_Dir(dir= self.dir)
+    db_strategy = tools.PhononDatabase()
 
-            if not(self.calc_stage.get('w_'+program.name)):
-                os.chdir(self.dir.input)
-                program.write()
-                self.calc_stage.update({'w_'+program.name:True})
-                self.dump(database= self.database.file)
-
-            if not (self.calc_stage.get('r_'+program.name)):
-                os.chdir(self.dir.calc)   
-                program.run(mpi=self.mpi)
-                self.calc_stage.update({'r_'+program.name:True})
-                self.dump(database= self.database.file)
-            else:
-                print('Check: {} fineshed'.format(program.name))
-
-    def makeDatabase(self, name):
-        
-        _DATABASE = name
-
-        db = pk.load(_DATABASE, False)
-
-        #optional: in case quantum-espresso programs are not in linux $PATH
-        #qe - quantum espresso programs' path
-        db.dcreate ('calculation')
-        db.dadd('calculation',('routine','TC') )
-        
-        #qe - quantum espresso programs' path
-        db.dcreate ('qe')
-        db.dadd('qe',('qe_programs','') )
-
-        #pseudo - pseudo potentials' folder path
-        db.dcreate('pseudo')
-        db.dadd('pseudo',('pseudo_folder','/home/camila/Documentos/EMA/Program-TC/pseudo/USPP') )
-
-        #mpi - parallen running description
-        db.dcreate ('mpi')
-
-        db.dadd('mpi',('np',4) )
-        db.dadd('mpi',('nk',4) )
-
-        #grids - points distance used to calculate grids for scf and phonons calculations
-        db.dcreate ('grid')
-
-        db.dadd('grid',('coarse_div',(9,9,9)) )
-        db.dadd('grid',('coarse_off',(0,0,0)) )
-        db.dadd('grid',('qpoints_div',(3,3,3)) )
-        db.dadd('grid',('qpoints_off',(0,0,0)) )
-        db.dadd('grid',('dense_div',(18,18,18)) )
-        db.dadd('grid',('dense_off',(0,0,0)) )
-        db.dadd('grid',('kdistance', 0.3) ) #distance in angstrons of two consecutive grid k-points
-        db.dadd('grid',('qdistance', 0.9) ) #distance in angstrons of two consecutive grid q-points
-        db.dadd('grid',('calc', 1) ) #habilitate the calculation from reciprocal vector
-
-        #Quantum-espresso programs' parameters:
-        db.dcreate ('pw_par')
-
-        db.dadd('pw_par',('restart_mode','from_scratch') )
-        db.dadd('pw_par',('occupations','smearing') )
-        db.dadd('pw_par',('smearing','marzari-vanderbilt') )
-        db.dadd('pw_par',('degauss',0.05) )
-        db.dadd('pw_par',('conv_thr',1e-10) )
-
-        db.dcreate ('ph_par')
-
-        db.dadd('ph_par',('tr2_ph',1e-12) )
-        db.dadd('ph_par',('ldisp','.true.') )
-        db.dadd('ph_par',('recover','.false.') )
-        db.dadd('ph_par',('electron_phonon','interpolated') )
-        db.dadd('ph_par',('el_ph_sigma',0.005) )
-        db.dadd('ph_par',('el_ph_nsigma',10) )
-
-        db.dcreate ('q2r_par')
-
-        db.dadd('q2r_par',('zasr','simple') )
-        db.dadd('q2r_par',('la2F','.true.') )
-
-        db.dcreate ('matdyn_par')
-
-        db.dadd('matdyn_par',('asr','simple') )
-        db.dadd('matdyn_par',('la2F','.true.') )
-        db.dadd('matdyn_par',('dos','.true.') )
-        db.dadd('matdyn_par',('nk1',10) )
-        db.dadd('matdyn_par',('nk2',10) )
-        db.dadd('matdyn_par',('nk3',10) )
-        db.dadd('matdyn_par',('ndos',50) )
-
-        db.dcreate ('lambda_par')
-
-        db.dadd('lambda_par',('sigma_omega', 0.12 ) )
-        db.dadd('lambda_par',('mu',0.16) )
-
-        return db
-
-class CalcEnergy(AttrDisplay, ICalculation):
-
-    calc_stage = {'w_scf'  : False, 
-                  'r_scf'  : False}
-
-    variables = [['routine'], ['qe_programs'], ['pseudo_folder'], ['np', 'nk'], ['kpoints_div', 'coarse_off', 
-              'kpoints_off'], ['restart_mode', 'occupations', 'smearing', 'degauss', 'conv_thr']]
-    
-    sufix = 'EN'
-
-    def __init__(self, strtucture):
-        ICalculation.__init__(self, strtucture = strtucture)
-                              
-    def _setVariables(self):
-        
-        self.pseudo = Pseudo()   
-        self.pseudo.load(database= self.database.file)
-
-        self.grid = Grid(name= 'kpoints')
-        self.grid.load(database= self.database.file)
-
-    def _setPrograms(self): 
-      
-        self.mpi    = Mpi()
-        self.pw     = Pwscf(prefix= self.prefix, grid= self.grid, 
-                            cell= self.cell, pseudo= self.pseudo)
-
-        for obj in [self.mpi, self.pw]:
-            obj.load(database= self.database.file)
-
-    def _runPrograms(self):
-
-        print('\n-> Run programs\n')
-
-        for program in [self.pw]:
-            program.set_Dir(dir= self.dir)
-
-            if not(self.calc_stage.get('w_'+program.name)):
-                os.chdir(self.dir.input)
-                program.write()
-                self.calc_stage.update({'w_'+program.name:True})
-                self.dump(database= self.database.file)
-
-            if not (self.calc_stage.get('r_'+program.name)):
-                os.chdir(self.dir.calc)   
-                program.run(mpi=self.mpi)
-                self.calc_stage.update({'r_'+program.name:True})
-                self.dump(database= self.database.file)
-            else:
-                print('Check: {} fineshed'.format(program.name))
-
-    def makeDatabase(self, name):
-        
-        _DATABASE = name
-
-        db = pk.load(_DATABASE, False)
-
-        #optional: in case quantum-espresso programs are not in linux $PATH
-        #qe - quantum espresso programs' path
-        db.dcreate ('calculation')
-        db.dadd('calculation',('routine','ENERGY') )
-        
-        #qe - quantum espresso programs' path
-        db.dcreate ('qe')
-        db.dadd('qe',('qe_programs','') )
-
-        #pseudo - pseudo potentials' folder path
-        db.dcreate('pseudo')
-        db.dadd('pseudo',('pseudo_folder','/home/camila/Documentos/EMA/Program-TC/pseudo/USPP') )
-
-        #mpi - parallen running description
-        db.dcreate ('mpi')
-
-        db.dadd('mpi',('np',4) )
-        db.dadd('mpi',('nk',4) )
-
-        #grids - points distance used to calculate grids for scf and phonons calculations
-        db.dcreate ('grid')
-
-        db.dadd('grid',('kpoints_div',(9,9,9)) )
-        db.dadd('grid',('kpoints_off',(0,0,0)) )
-
-        #Quantum-espresso programs' parameters:
-        db.dcreate ('pw_par')
-
-        db.dadd('pw_par',('restart_mode','from_scratch') )
-        db.dadd('pw_par',('occupations','smearing') )
-        db.dadd('pw_par',('smearing','marzari-vanderbilt') )
-        db.dadd('pw_par',('degauss',0.05) )
-        db.dadd('pw_par',('conv_thr',1e-10) )
-
-        return db
-
-class CalcPhonon(AttrDisplay, ICalculation):
     calc_stage = {'w_scf': False, 'w_ph': False, 
                   'r_scf': False, 'r_ph': False}
-
-    variables = [['routine'], ['qe_programs'], ['pseudo_folder'], ['np', 'nk'], ['kpoints_div', 'coarse_off', 
-              'kpoints_off'], ['restart_mode', 'occupations', 'smearing', 'degauss', 'conv_thr'], 
-              ['tr2_ph', 'electron_phonon', 'el_ph_sigma', 'el_ph_nsigma']]
-    
     sufix = 'PH'
+    
+    grid_variable = ['kpoints_div', 'coarse_off', 'kpoints_off']
 
-    def __init__(self, strtucture):
-        ICalculation.__init__(self, strtucture = strtucture)
-                              
+    pw    = qe.Pwscf1()
+    ph    = qe.Phonon()
+    programs = [pw, ph] 
+    
+    def __init__(self, structure, prefix):
+        ICalculation.__init__(self, structure = structure, prefix= prefix)
+        
     def _setVariables(self):
         
-        self.pseudo = Pseudo()
-        self.pseudo.load(database= self.database.file)
+        pseudo = qe.Pseudo()
+        pseudo.load(database= self.database.path)
 
-        self.grid = Grid(name= 'kpoints')
-        self.grid.load(database= self.database.file)
-
-    def _setPrograms(self): 
+        grid = qe.Grid(name= 'kpoints')
+        grid.load(database= self.database.path)
       
-        self.mpi    = Mpi()
-        self.pw    = Pwscf1(prefix= self.prefix, grid= self.grid,
-                            cell= self.cell, pseudo= self.pseudo)
-        self.ph     = Phonon(prefix= self.prefix)
+        self.mpi    = qe.Mpi()
+        self.pw     = qe.Pwscf(prefix= self.prefix, grid= grid,
+                            atoms= self.atoms, pseudo= pseudo)
+        self.ph     = qe.Phonon(prefix= self.prefix, vector = ' 0.0 0.0 0.0')
 
         for obj in [self.mpi, self.pw, self.ph]:
-            obj.load(database= self.database.file)
+            obj.load(database= self.database.path)
 
-    def _runPrograms(self):
+        self.programs =  [self.pw, self.ph]
 
-        print('\n-> Run programs\n')
+    def _output(self):
 
-        for program in [self.pw, self.ph]:
-            program.set_Dir(dir= self.dir)
+        dyndir= self.directory.calc
+        filename= self.ph.parameters.get('fildyn')
 
-            if not(self.calc_stage.get('w_'+program.name)):
-                os.chdir(self.dir.input)
-                program.write()
-                self.calc_stage.update({'w_'+program.name:True})
-                self.dump(database= self.database.file)
+        current_dir = os.getcwd() 
 
-            if not (self.calc_stage.get('r_'+program.name)):
-                os.chdir(self.dir.calc)   
-                program.run(mpi=self.mpi)
-                self.calc_stage.update({'r_'+program.name:True})
-                self.dump(database= self.database.file)
-            else:
-                print('Check: {} fineshed'.format(program.name))
+        os.chdir(path= dyndir)
 
-    def makeDatabase(self, name):
+        with open(filename, 'r') as f:
+            content = f.readlines()
         
-        _DATABASE = name
+        result = []
+        flag_add = False
+        for line in content:
+            if line.find("******")> -1 and flag_add:
+                flag_add = False
 
-        db = pk.load(_DATABASE, False)
+            if flag_add == True:
+                result.append(line)
 
-        #optional: in case quantum-espresso programs are not in linux $PATH
-        #qe - quantum espresso programs' path
-        db.dcreate ('calculation')
-        db.dadd('calculation',('routine','PH') )
+            if line.find("******")> -1  and not flag_add:
+                flag_add = True
+
+        os.chdir(path= self.directory.output)
+
+        with open('result', 'w') as f:
+            for line in result:     
+                f.write(line)
+
+        os.chdir(path= current_dir)
+
+class EquationOfState(AttrDisplay, ICalculation):
+
+    db_strategy = tools.EosDatabase()
+
+    sufix = 'EOS'
+
+    calc_stage = {None}
+
+    grid_variable = ['kpoints_div', 'kpoints_off']
+
+    pw = qe.Pwscf()
+    programs = [pw]
+
+    def __init__(self, structure, prefix):
+        ICalculation.__init__(self, structure = structure, prefix= prefix)
+                              
+    def _setVariables(self):   
+
+        os.environ["ASE_ESPRESSO_COMMAND"] = "pw.x -in PREFIX.pwi > PREFIX.pwo"
+
+        pseudo = qe.Pseudo()   
+        pseudo.load(database= self.database.path)
+
+        grid = qe.Grid(name= 'kpoints')
+        grid.load(database= self.database.path)
+
+        pw = qe.Pwscf(prefix= self.prefix, grid= grid, 
+                           atoms= self.atoms, pseudo= pseudo)
+        pw.load(database= self.database.path)
+
+        calc = ase.calculators.espresso.Espresso(pseudopotentials= pw.pseudo,
+                                                 tstress=False, tprnfor=False,
+                                                 input_data=  pw.parameters)
+        self.atoms.calc = calc
+
+        self.compressions= CellCompression(atoms= self.atoms)
+        self.compressions.load(database= self.database.path)
+
+    def _run(self):
+
+        current_dir = os.getcwd()
+        os.chdir(self.directory.calc)
+
+        cell = self.atoms.get_cell()
+        traj = ase.io.trajectory.Trajectory(self.prefix + '.traj', 'w')
+
+        for x in np.linspace(self.compressions.init, self.compressions.final, self.compressions.n):
+            self.atoms.set_cell(cell * x, scale_atoms=True)
+            self.atoms.get_potential_energy()
+            traj.write(self.atoms)
+
+        os.chdir(current_dir)
+
+    def _output(self):
+
+        current_dir = os.getcwd()
+        os.chdir(self.directory.calc)
         
-        #qe - quantum espresso programs' path
-        db.dcreate ('qe')
-        db.dadd('qe',('qe_programs','') )
+        configs = ase.io.read(self.prefix + '.traj@0:'+str(self.compressions.n))
 
-        #pseudo - pseudo potentials' folder path
-        db.dcreate('pseudo')
-        db.dadd('pseudo',('pseudo_folder','/home/camila/Documentos/EMA/Program-TC/pseudo/USPP') )
+        # Extract volumes and energies:
+        volumes = [atoms.get_volume() for atoms in configs]
+        energies = [atoms.get_potential_energy() for atoms in configs]
 
-        #mpi - parallen running description
-        db.dcreate ('mpi')
+        eos = ase.eos.EquationOfState(volumes, energies, eos = 'birchmurnaghan')
+        v0, e0, B = eos.fit()
 
-        db.dadd('mpi',('np',4) )
-        db.dadd('mpi',('nk',4) )
+        os.chdir(self.directory.output)
+        eos.plot(self.prefix + '-eos.png')
 
-        #grids - points distance used to calculate grids for scf and phonons calculations
-        db.dcreate ('grid')
+        #prepare result file:
+        filename = 'result'
+        filecontent = ['volume(Angstrom^3)             energie(eV)\n\n']
+        for i in range( 0, self.compressions.n):
+            line = str(volumes[i]) + '          ' + str(energies[i])+'\n'
+            filecontent.append(line)
+        
+        filecontent.append('\n')
+        filecontent.append('optimal volume: ' + str(v0) + ' Angstrom^3\n')
+        filecontent.append('minimum energy: ' + str(e0) + ' eV\n')
+        filecontent.append('bulk modulus: ' + str(B / ase.units.kJ * 1.0e24) + ' GPa\n')
 
-        db.dadd('grid',('kpoints_div',(9,9,9)) )
-        db.dadd('grid',('kpoints_off',(0,0,0)) )
+        with open(filename, 'w') as f:     
+            for line in filecontent:
+                f.write(line)
 
-        #Quantum-espresso programs' parameters:
-        db.dcreate ('pw_par')
-
-        db.dadd('pw_par',('restart_mode','from_scratch') )
-        db.dadd('pw_par',('occupations','smearing') )
-        db.dadd('pw_par',('smearing','marzari-vanderbilt') )
-        db.dadd('pw_par',('degauss',0.05) )
-        db.dadd('pw_par',('conv_thr',1e-10) )
-
-        db.dcreate ('ph_par')
-
-
-        db.dadd('ph_par',('tr2_ph',1e-12) )
-        db.dadd('ph_par',('electron_phonon','interpolated') )
-        db.dadd('ph_par',('recover','.false.') )
-        db.dadd('ph_par',('ldisp','.false.') )
-        db.dadd('ph_par',('el_ph_sigma',0.005) )
-        db.dadd('ph_par',('el_ph_nsigma',10) )
-
-        return db
+        os.chdir(current_dir)
 
 ################################################################################
 ##----------------------------------------------------------------------------##
 ################################################################################
 
 if __name__ == '__main__':
-    pass
+
+    #Unit Tests
+    cell_name = 'Nb.cif'
+    prefix = cell_name.split('.')[0]
+    cell_atoms = qe.CellStructure(filename= cell_name)
+
+    #Test class TC
+    print('\nTEST TC\n')
+    tc_prefix = prefix + '_TC'
+    tc_dbname = tc_prefix + '.db'
+    
+    print('\nTEST 1: criate a TC obj from .cif file')
+    tc_test = TC(structure= cell_atoms)
+    print(tc_test)
+
+    print('\nTEST 2: criate a TC general database')
+    tc_test.database = tc_test.makeDatabase(name= tc_dbname)
+    print(tc_test.database)
+
+    print('\nTEST 3: criate a TC directory')
+    tc_directory = prg.Directory(workpath= os.path.join(os.getcwd(), tc_prefix))
+    tc_directory.makedirs()
+    tc_test.directory = tc_directory
+    print(tc_test.directory)
+
+    print('\nTEST 4: calculate TC')
+    tc_test.calculate()
+    
+    #Test class PHONON_GAMMA
+    print('\nTEST PHONON_GAMMA\n')
+    ph_prefix = prefix + '_PH'
+    ph_dbname = ph_prefix + '.db'
+    
+    print('\nTEST 1: criate a PHONON_GAMMA obj from .cif file')
+    ph_test = PhononGamma(structure= cell_atoms)
+    print(ph_test)
+
+    print('\nTEST 2: criate a PHONON_GAMMA general database')
+    ph_test.database = tc_test.makeDatabase(name= ph_dbname)
+    print(ph_test.database)
+
+    print('\nTEST 3: criate a PHONON_GAMMA directory')
+    ph_directory = prg.Directory(workpath= os.path.join(os.getcwd(), ph_prefix))
+    ph_directory.makedirs()
+    ph_test.directory = ph_directory
+    print(ph_test.directory)
+
+    print('\nTEST 4: calculate PHONON_GAMMA')
+    ph_test.calculate()
+
+    #Test class ENERGY
+    print('\nTEST ENERGY\n')
+    en_prefix = prefix + '_EN'
+    en_dbname = en_prefix + '.db'
+    
+    print('\nTEST 1: criate a ENERGY obj from .cif file')
+    en_test = PhononGamma(structure= cell_atoms)
+    print(en_test)
+
+    print('\nTEST 2: criate a ENERGY general database')
+    en_test.database = en_test.makeDatabase(name= en_dbname)
+    print(en_test.database)
+
+    print('\nTEST 3: criate a ENERGY directory')
+    en_directory = prg.Directory(workpath= os.path.join(os.getcwd(), en_prefix))
+    en_directory.makedirs()
+    en_test.directory = en_directory
+    print(en_test.directory)
+
+    print('\nTEST 4: calculate ENERGY')
+    en_test.calculate()
+    

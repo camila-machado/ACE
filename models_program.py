@@ -14,50 +14,93 @@
 
 This module provide class interfaces for quantum espresso programs
 """
-
-import ase
-import ase.io
 import os
 import shutil
 import sys
-import pickledb as pk
 from pathlib import PurePath
+
+import ase
+import ase.io
+import pickledb as pk
+
 from classtools import AttrDisplay
+import tools
 
 class Directory:
 
-    def __init__(self, work_path):
-        self.work = work_path
-        self.calc = os.path.join(work_path, 'calc_dir')
-        self.output = os.path.join(work_path, 'out_dir')
-        self.input = os.path.join(work_path, 'input_dir')
+    def __init__(self, workpath):
+        self.work = workpath
+        self.calc = os.path.join(workpath, 'calc')
+        self.output = os.path.join(workpath, 'output')
+        self.input = os.path.join(workpath, 'input')
 
     def makedirs(self):
-        os.makedirs(self.calc)
-        os.makedirs(self.output)
-        os.makedirs(self.input)       
+        for dir in [self.calc, self.output, self.input]:
+            try:
+                os.makedirs(dir)
+            except FileExistsError:
+                print('directory {} already exist'.format(dir))       
    
     def delete(self):
-        shutil.rmtree(self.calc)
-        shutil.rmtree(self.output)
-        shutil.rmtree(self.input)
+        for dir in [self.calc, self.output, self.input]:
+            self._delete(dir)
+    
+    def clean(self):
+        for dir in [self.calc, self.output, self.input]:
+            if self._isempty(dir):
+                self._delete(dir)
 
-class IFile(AttrDisplay):
+    def _isempty(self, dir):
+        if os.path.exists(dir) and os.path.isdir(dir):
+            if not os.listdir(dir):
+                return True
+            else:
+                return False
+
+    def _delete(self, dir):
+        try:
+            shutil.rmtree(dir)
+        except FileNotFoundError:
+            print('directory {} do not exist'.format(dir))   
+
+
+class File(AttrDisplay):
+
+    read_strategy = tools.IReadStrategy()
     """
     
     This class provide file interface used to manage database and
     structures files 
     """
-    
-    def __init__(self, infile):
-        self.path = PurePath(infile)
-        self.file = str(self.path)
-        self.name = self.path.stem
-        self.format = self.path.suffix.strip('.')
-        self.dir = str(self.path.parent)
-        assert os.path.isfile(self.path), 'This is not a file directory'
+    def __init__(self, filename, fileformat, read_strategy):
+        filepath = os.path.join(os.getcwd(), filename)
+        filepath = os.path.normpath(filepath)
+        assert os.path.isfile(filepath), 'This is not a file directory'
+
+        path = PurePath(filepath)
+        self.file = os.path.basename(filepath)
+        self.name = path.stem
+        self.format = path.suffix.strip('.')
+        self.dir = str(path.parent)
+        self.path = str(path)
+        self.read_strategy = read_strategy
+
+        assert self.format == fileformat, 'File must be of .{} format'.format(fileformat)
+
+    def rename(self, name):
+        filenew = os.path.join(self.dir, name)
+        os.rename(src= self.path, dst=  filenew)
+        self.__init__(filename= filenew,
+                      fileformat= self.format, 
+                      read_strategy= self.read_strategy)
+
+    def read(self):
+
+        content = self.read_strategy.read(filepath= self.path)
+        return content
 
     def copy(self):
+        print('\n-> Copying {} file ...\n'.format(self.file))
         """
 
         This function copies the file represented by the File object 
@@ -66,11 +109,10 @@ class IFile(AttrDisplay):
         """
         current_path = os.getcwd()
         try:
-            new_file = shutil.copy(self.file, current_path)
+            filenew = shutil.copy(self.path, current_path)
         except shutil.SameFileError as e:
-            new_file =  os.path.join(current_path, os.path.basename(self.file))
+            filenew =  os.path.join(current_path, os.path.basename(self.path))
             print('Check: File already here')
-
         except IOError as e:
             print('Unable to copy file. %s' % e)
             raise
@@ -79,118 +121,50 @@ class IFile(AttrDisplay):
             raise
         else:
             print('Check: File copied')
-            self.__init__(infile= new_file)    
+            self.__init__(filename= filenew, 
+                          fileformat= self.format, 
+                          read_strategy= self.read_strategy)   
 
-    def rename(self, name):
-        new_file = os.path.join(self.dir, name)
-        os.rename(src= self.file, dst=  new_file)
-        self.__init__(infile= new_file)
 
-class CellStructure(IFile):
-    """
+################################################################################
+##----------------------------------------------------------------------------##
+################################################################################
+
+if __name__ == '__main__':    
+     
+    #Unit Tests
+         
+    #Test class Directory
+    print('\nTEST DIRECTORY\n')
+
+    dir = Directory(workpath= os.getcwd())
+    print('\nTEST 1: criate a Directory obj\n', dir)
+
+    print('\nTEST 2: criate subdirectories\n')
+    dir.makedirs()
+
+    print('\nTEST 3: delete subdirectories\n')
+    dir.delete()
+
+    #Test class CellStructure
+    print('\nTEST CELLSTRUCTURE\n')
+
+    cell1 = CellStructure(filename= '/home/camila/Documentos/EMA/Program-TC/cif_database/H3S.cif')
+    print('\nTEST 1: criate a CellStructure obj from .cif file from absolute path\n', cell1)
+
+    cell2 = CellStructure(filename='../models_qe/Nb.cif')
+    print('\nTEST 2: criate a CellStructure obj from .cif file from relative path\n', cell2)
+
+    print('\nTEST 3: copy CellStructure .cif file\n')
+    cell1.copy()
     
-    This class provides an interface for cell structure .cif files,
-    easily reaching information useful for quantum espresso programs
-    """
-    db_dict = 'cell_structure'
+    print('\nTEST 4: read a CellStructure obj\n')
+    atoms = cell1.read()
+    print(atoms)
 
-    def __init__(self, infile = ''):
-        IFile.__init__(self, infile)
-        assert self.format == 'cif', 'Structure file must be .cif'
-        self.structure = ase.io.read(filename = self.file,
-                            format=self.format,
-                            subtrans_included = False,
-                            primitive_cell= True)
-        symbols = self.structure.get_chemical_symbols()
-        self.elements = list(dict.fromkeys(symbols))
+    print('\nTEST 4: get elements from a CellStructure obj\n')
+    elements = cell1.elements()
+    print(elements)
     
-    def copy(self):
-        print('\n-> Copying structure file ...\n')
-        IFile.copy(self)
-
-class Database(IFile):
-    """
     
-    This class provides an interface for database .db files
-    """
-    def __init__(self, infile = ''):
-        IFile.__init__(self, infile)
-        assert self.format == 'db', 'Database file must be .db'
-
-    def copy(self):
-        print('\n-> Copying database file ...\n')
-        IFile.copy(self)
-
-    def read(self):
-        
-        db = pk.load(self.file, False)
-
-        sections = list(db.getall())
-
-        parameters = []
-        keys = []
-        for section in sections:
-            parameters.append(dict(db.dgetall(section))) 
-            keys.append(list(db.dgetall(section)))
-
-        return sections, parameters, keys
-
-class InputVariables(IFile):
-    """
     
-    This class provides an interface for input variables file
-    """
-    def __init__(self, infile = ''):
-        IFile.__init__(self, infile)
-
-        assert self.format == 'in', 'Input file must be .in'
-        sec, par = self.read(infile= infile)
-        self.sections = sec
-        self.parameters = par
-
-    def copy(self):
-        print('\n-> Copying input variables file ...\n')
-        IFile.copy(self)
-
-    def read(self, infile):
-        with open(infile, 'r') as f:
-            file_content = f.readlines()
-
-        sections = []
-        parameters =[]
-        
-        par = {}
-        for line in file_content:
-
-            if line.count('&'):
-                section = line.strip('&\n ').lower()
-                sections.append(section)
-                if par:
-                    parameters.append(par.copy())
-                    par.clear()               
-            else:
-                key, value = self._parseLine(line)
-                if key:
-                    par.update({key:value})
-
-        parameters.append(par)
-
-        return sections, parameters
-
-    def _parseLine(self, line):
-        eq = line.find('=')
-        if eq == -1:
-            return 0, 0
-        key = line[:eq].strip()
-        value = line[eq+1:].strip()
-
-        return key, self._parseValue(value)
-
-    def _parseValue(self, expr):
-        try:
-            return eval(expr)
-        except:
-            return expr
-        else:
-            return expr
-

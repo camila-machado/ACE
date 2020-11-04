@@ -1,0 +1,53 @@
+&QE
+   qe_programs      = ''
+/
+&PSEUDO
+   pseudo_folder    = '/home/camila/Documentos/EMA/Program-TC/pseudo/USPP'
+/
+&MPI
+   np               = 4
+   nk               = 4
+/
+&GRID
+   coarse_div       = (9, 9, 9)
+   coarse_off       = (0, 0, 0)
+   qpoints_div      = (3, 3, 3)
+   qpoints_off      = (0, 0, 0)
+   dense_div        = (18, 18, 18)
+   dense_off        = (0, 0, 0)
+   kdistance        = 0.3
+   qdistance        = 0.9
+   calc             = 1
+/
+&PW_PAR
+   restart_mode     = 'from_scratch'
+   occupations      = 'smearing'
+   smearing         = 'marzari-vanderbilt'
+   degauss          = 0.05
+   conv_thr         = 1e-10
+/
+&PH_PAR
+   tr2_ph           = 1e-12
+   ldisp            = .true.
+   recover          = .false.
+   electron_phonon  = 'interpolated'
+   el_ph_sigma      = 0.005
+   el_ph_nsigma     = 10
+/
+&Q2R_PAR
+   zasr             = 'simple'
+   la2F             = .true.
+/
+&MATDYN_PAR
+   asr              = 'simple'
+   la2F             = .true.
+   dos              = .true.
+   nk1              = 10
+   nk2              = 10
+   nk3              = 10
+   ndos             = 50
+/
+&LAMBDA_PAR
+   sigma_omega      = 0.12
+   mu               = 0.16
+/
