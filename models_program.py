@@ -14,15 +14,17 @@
 
 This module provide class interfaces for quantum espresso programs
 """
-
-import ase
-import ase.io
 import os
 import shutil
 import sys
-import pickledb as pk
 from pathlib import PurePath
+
+import ase
+import ase.io
+import pickledb as pk
+
 from classtools import AttrDisplay
+import tools
 
 class Directory:
 
@@ -41,29 +43,64 @@ class Directory:
    
     def delete(self):
         for dir in [self.calc, self.output, self.input]:
-            try:
-                shutil.rmtree(dir)
-            except FileNotFoundError:
-                print('directory {} do not exist'.format(dir))   
+            self._delete(dir)
+    
+    def clean(self):
+        for dir in [self.calc, self.output, self.input]:
+            if self._isempty(dir):
+                self._delete(dir)
 
-class IFile(AttrDisplay):
+    def _isempty(self, dir):
+        if os.path.exists(dir) and os.path.isdir(dir):
+            if not os.listdir(dir):
+                return True
+            else:
+                return False
+
+    def _delete(self, dir):
+        try:
+            shutil.rmtree(dir)
+        except FileNotFoundError:
+            print('directory {} do not exist'.format(dir))   
+
+
+class File(AttrDisplay):
+
+    read_strategy = tools.IReadStrategy()
     """
     
     This class provide file interface used to manage database and
     structures files 
     """
-    def __init__(self, filename):
+    def __init__(self, filename, fileformat, read_strategy):
         filepath = os.path.join(os.getcwd(), filename)
         filepath = os.path.normpath(filepath)
         assert os.path.isfile(filepath), 'This is not a file directory'
 
         path = PurePath(filepath)
+        self.file = os.path.basename(filepath)
         self.name = path.stem
         self.format = path.suffix.strip('.')
         self.dir = str(path.parent)
         self.path = str(path)
+        self.read_strategy = read_strategy
+
+        assert self.format == fileformat, 'File must be of .{} format'.format(fileformat)
+
+    def rename(self, name):
+        filenew = os.path.join(self.dir, name)
+        os.rename(src= self.path, dst=  filenew)
+        self.__init__(filename= filenew,
+                      fileformat= self.format, 
+                      read_strategy= self.read_strategy)
+
+    def read(self):
+
+        content = self.read_strategy.read(filepath= self.path)
+        return content
 
     def copy(self):
+        print('\n-> Copying {} file ...\n'.format(self.file))
         """
 
         This function copies the file represented by the File object 
@@ -84,128 +121,10 @@ class IFile(AttrDisplay):
             raise
         else:
             print('Check: File copied')
-            self.__init__(filename= filenew)    
+            self.__init__(filename= filenew, 
+                          fileformat= self.format, 
+                          read_strategy= self.read_strategy)   
 
-    def rename(self, name):
-        filenew = os.path.join(self.dir, name)
-        os.rename(src= self.path, dst=  filenew)
-        self.__init__(filename= filenew)
-
-class CellStructure(IFile):
-    """
-    
-    This class provides an interface for cell structure .cif files,
-    easily reaching information useful for quantum espresso programs
-    """
-    db_dict = 'cell_structure'
-
-    def __init__(self, filename = ''):
-        IFile.__init__(self, filename)
-        assert self.format == 'cif', 'Structure file must be .cif'
-
-    def copy(self):
-        print('\n-> Copying structure file ...\n')
-        IFile.copy(self)
-
-    def read(self):
-        atoms_structure = ase.io.read(filename = self.path,
-                                    format=self.format,
-                                    subtrans_included = False,
-                                    primitive_cell= True)
-        return atoms_structure
-    
-    def elements(self):
-        atoms = self.read()
-        symbols = atoms.get_chemical_symbols()
-        elements = list(dict.fromkeys(symbols))
-
-        return elements
-
-class Database(IFile):
-    """
-    
-    This class provides an interface for database .db files
-    """
-    def __init__(self, filename = ''):
-        IFile.__init__(self, filename)
-        assert self.format == 'db', 'Database file must be .db'
-
-    def copy(self):
-        print('\n-> Copying database file ...\n')
-        IFile.copy(self)
-
-    def read(self):
-        db = pk.load(self.path, False)
-
-        sections = list(db.getall())
-
-        parameters = []
-        keys = []
-        for section in sections:
-            parameters.append(dict(db.dgetall(section))) 
-            keys.append(list(db.dkeys(section)))
-
-        return sections, parameters, keys
-
-class InputVariables(IFile):
-    """
-    
-    This class provides an interface for input variables file
-    """
-    def __init__(self, filename = ''):
-        IFile.__init__(self, filename)
-        assert self.format == 'in', 'Input file must be .in'
-
-    def copy(self):
-        print('\n-> Copying input variables file ...\n')
-        IFile.copy(self)
-
-    def read(self):
-
-        with open(self.path, 'r') as f:
-            file_content = f.readlines()
-
-        sections = []
-        parameters = []
-        keys = []
-
-        sec_key = []
-        sec_par = {}
-        for line in file_content:
-
-            if line.count('&'):
-                section = line.strip('&\n ').lower()
-                sections.append(section)
-                if sec_par:
-                    parameters.append(sec_par.copy())
-                    sec_par.clear()               
-            else:
-                key, value = self._parseLine(line)
-                if key:
-                    sec_par.update({key:value})
-                    sec_key.append(key)
-
-        parameters.append(sec_par)
-        keys.append(sec_key)
-
-        return sections, parameters, keys
-
-    def _parseLine(self, line):
-        eq = line.find('=')
-        if eq == -1:
-            return 0, 0
-        key = line[:eq].strip()
-        value = line[eq+1:].strip()
-
-        return key, self._parseValue(value)
-
-    def _parseValue(self, expr):
-        try:
-            return eval(expr)
-        except:
-            return expr
-        else:
-            return expr
 
 ################################################################################
 ##----------------------------------------------------------------------------##
@@ -247,34 +166,5 @@ if __name__ == '__main__':
     elements = cell1.elements()
     print(elements)
     
-    #Test class Database
-    print('\nTEST DATABASE\n')
-
-    database = Database(filename= 'Nb_config.db')
-    print('\nTEST 1: criate a Database obj from .db file\n', database)
-
-    print('\nTEST 2: read a Database obj\n')
-
-    sec, par , key = database.read()
-
-    print('database', database.name,":\n")
-    print('sections:', sec, '\n')
-    print('keys:', key, '\n')
-    print('parameters:', par, '\n')
-    
-    #Test class InputVariables
-    print('\nTEST INPUTVARIABLES\n')
-
-    inputvar = InputVariables(filename= 'inputTC.in')
-    print('\nTEST 1: criate a Inputvar obj from .in file\n', inputvar)
-
-    print('\nTEST 2: read a Inputvar obj\n')
-
-    sec, par , key = inputvar.read()
-
-    print('inputvar', inputvar.name,":\n")
-    print('sections:', sec, '\n')
-    print('keys:', key, '\n')
-    print('parameters:', par, '\n')
     
     

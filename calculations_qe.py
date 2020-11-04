@@ -16,19 +16,59 @@ This module provides class interfaces to calculate the superconductivity
 critical temperature using quantum espresso programs and qeporgrams module.
 """
 import numpy as np
-import pickledb as pk
 import os
+
+import ase
+import ase.build
+import ase.calculators.espresso 
+import ase.eos
+import ase.io
+import ase.io.trajectory
+import ase.units
+import pickledb as pk
 
 from classtools import AttrDisplay
 import models_qe as qe
 import models_program as prg
 import tools
 
+class CellCompression(AttrDisplay):
+    db_dict = 'compression'
+
+    def __init__(self, atoms, init= 0.8, final= 1.2, n=10):
+        self.atoms = atoms
+        self.init = init
+        self.final = final
+        self.n = n
+
+    def compress(self):
+        atoms = self.atoms
+        cell = atoms.get_cell()
+        
+        compress_atoms = []
+        for x in np.linspace(self.init, self.final, self.n):
+            atoms.set_cell(cell * x, scale_atoms=True)
+            compress_atoms.append(atoms)
+
+        return compress_atoms
+    
+    def load(self, database):
+        db = pk.load(database, False)
+        self.init = float(db.dget(self.db_dict, 'init'))
+        self.final = float(db.dget(self.db_dict, 'final'))
+        self.n = int(db.dget(self.db_dict, 'n'))
+
+    def dump(self, database):
+        db = pk.load(database, False)
+        db.dadd(self.db_dict,('n_init', self.n_init))
+        db.dadd(self.db_dict,('n_final', self.n_final))
+        db.dadd(self.db_dict,('n', self.n))
+
 class TcGridsWrapper(AttrDisplay):
     db_dict = 'grid'
 
-    def __init__(self, cell , kdistance = 0, qdistance = 0):
-        self.cell = cell
+    def __init__(self, atoms , kdistance = 0, qdistance = 0):
+        self.atoms = atoms
         self.kdistance = kdistance
         self.qdistance = qdistance
         self.coarse = qe.Grid('coarse')
@@ -40,7 +80,7 @@ class TcGridsWrapper(AttrDisplay):
         print('\n-> Grids')
 
         if self.calc:
-            self.reciprocal  = self._calcReciprocalModule(cell= self.cell)
+            self.reciprocal  = self._calcReciprocalModule(atoms= self.atoms)
             self.minimalgrid = self._calcMinimalGrid(reciprocal= self.reciprocal)
             self.c_factor = self._calcGridFactor(distance= self.kdistance)
             self.q_factor = self._calcGridFactor(distance= self.qdistance)
@@ -55,13 +95,12 @@ class TcGridsWrapper(AttrDisplay):
 
             print('\nUsed input grids')
 
-    def _calcReciprocalModule(self, cell):
+    def _calcReciprocalModule(self, atoms):
         a = np.zeros((3,3)) #direct vectors
         b = np.zeros((3,3)) #reciprocal vectors
         nb = np.zeros(3)    #reciprocal vectors' modules
 
-        structure = cell.read()
-        a = structure.cell
+        a = atoms.cell
         
         pi = np.pi
         b[0] = 2*pi*np.cross(a[1],a[2])/np.dot(a[0],np.cross(a[1],a[2]))
@@ -142,14 +181,14 @@ class ICalculation():
     programs = None
     sufix = None
 
-    def __init__(self, structure):
+    def __init__(self, structure, prefix):
         assert self.sufix, 'Input sufix must be defined!'
         assert self.programs, 'Programs must be defined!'
         assert self.calc_stage, 'Calculation satages must be defined!'
         assert self.grid_variable, 'Variables must be defined!'
 
-        self.cell = structure
-        self.prefix = structure.name
+        self.atoms = structure
+        self.prefix = prefix
         self.input_name = self.prefix + '.' + self.sufix + '.in'
 
         self.variables = ICalculation.variables
@@ -166,18 +205,15 @@ class ICalculation():
 
         os.chdir(self.directory.work)
         self._setVariables()
-        self._setPrograms()
-        self._runPrograms()
+        self._run()
+        self._output()
 
         os.chdir(current_dir)
 
     def _setVariables(self):
         assert False, '_setVariables() must be defined!'
-    
-    def _setPrograms(self):
-        assert False, '_setPrograms() must be defined!'
 
-    def _runPrograms(self):
+    def _run(self):
 
         print('\n-> Run programs\n')
 
@@ -198,6 +234,9 @@ class ICalculation():
             else:
                 print('Check: {} fineshed'.format(program.name))
         
+    def _output(self):
+        pass
+
     def makeDatabase(self, name):
         database = self.db_strategy.make_database(name = name)
         return database
@@ -206,7 +245,7 @@ class ICalculation():
         db = pk.load(database, False)
         self.calc_stage = db.dgetall(self.db_dict)
 
-    def dump(self, database)
+    def dump(self, database):
         db = pk.load(database, False)
         db.set(self.db_dict, self.calc_stage)
         db.dump()       
@@ -238,34 +277,31 @@ class TC(AttrDisplay, ICalculation):
     lamb   = qe.Lambda()
     programs = [pw2, ph, q2r, matdyn, lamb]         
     
-    def __init__(self, structure):
-        ICalculation.__init__(self, structure = structure)
+    def __init__(self, structure, prefix):
+        ICalculation.__init__(self, structure = structure, prefix= prefix)
                               
     def _setVariables(self):
         
-        self.pseudo = qe.Pseudo()   
-        self.pseudo.load(database= self.database.path)
+        pseudo = qe.Pseudo()   
+        pseudo.load(database= self.database.path)
 
-        self.grids = TcGridsWrapper(cell= self.cell)
-        self.grids.load(database= self.database.path)
+        grids = TcGridsWrapper(atoms= self.atoms)
+        grids.load(database= self.database.path)
 
         if not(self.calc_stage.get('calc_grids')):
-            self.grids.calculate()
-            self.grids.dump(database= self.database.path)
+            grids.calculate()
+            grids.dump(database= self.database.path)
             self.calc_stage.update({'calc_grids':True})
-            self.dump(database= self.database.path)
-        
+            self.dump(database= self.database.path)   
         else:
             print('Check: Grids fineshed')
-
-    def _setPrograms(self): 
       
         self.mpi    = qe.Mpi()
-        self.pw1    = qe.Pwscf1(prefix= self.prefix, grid= self.grids.dense, 
-                            cell= self.cell, pseudo= self.pseudo, name= 'scf1')
-        self.pw2    = qe.Pwscf(prefix= self.prefix, grid= self.grids.coarse, 
-                            cell= self.cell, pseudo= self.pseudo, name = 'scf2')
-        self.ph     = qe.Phonon(prefix= self.prefix, grid= self.grids.qpoints)
+        self.pw1    = qe.Pwscf1(prefix= self.prefix, grid= grids.dense, 
+                            atoms= self.atoms, pseudo= pseudo, name= 'scf1')
+        self.pw2    = qe.Pwscf(prefix= self.prefix, grid= grids.coarse, 
+                            atoms= self.atoms, pseudo= pseudo, name = 'scf2')
+        self.ph     = qe.Phonon(prefix= self.prefix, grid= grids.qpoints)
         self.q2r    = qe.Q2r(prefix= self.prefix)
         self.matdyn = qe.Matdyn(prefix= self.prefix)
         self.lamb   = qe.Lambda(prefix= self.prefix, dyndir = self.directory.calc)
@@ -274,43 +310,6 @@ class TC(AttrDisplay, ICalculation):
             obj.load(database= self.database.path)
 
         self.programs = [self.pw1, self.pw2, self.ph, self.q2r, self.matdyn, self.lamb]
-
-
-class Energy(AttrDisplay, ICalculation):
-
-    db_strategy = tools.EnergyDatabase()
-
-    sufix = 'EN'
-
-    calc_stage = {'w_scf'  : False, 
-                  'r_scf'  : False}
-
-    grid_variable = ['kpoints_div', 'kpoints_off']
-
-    pw = qe.Pwscf()
-    programs = [pw]
-
-    def __init__(self, structure):
-        ICalculation.__init__(self, structure = structure)
-                              
-    def _setVariables(self):
-        
-        self.pseudo = qe.Pseudo()   
-        self.pseudo.load(database= self.database.path)
-
-        self.grid = qe.Grid(name= 'kpoints')
-        self.grid.load(database= self.database.path)
-
-    def _setPrograms(self):  
-        self.mpi    = qe.Mpi()
-        self.pw     = qe.Pwscf(prefix= self.prefix, grid= self.grid, 
-                            cell= self.cell, pseudo= self.pseudo)
-
-        for obj in [self.mpi, self.pw]:
-            obj.load(database= self.database.path)
-
-        self.programs = [self.pw]
-
 
 class PhononGamma(AttrDisplay, ICalculation):
 
@@ -326,28 +325,146 @@ class PhononGamma(AttrDisplay, ICalculation):
     ph    = qe.Phonon()
     programs = [pw, ph] 
     
-    def __init__(self, structure):
-        ICalculation.__init__(self, structure = structure)
+    def __init__(self, structure, prefix):
+        ICalculation.__init__(self, structure = structure, prefix= prefix)
         
     def _setVariables(self):
         
-        self.pseudo = qe.Pseudo()
-        self.pseudo.load(database= self.database.path)
+        pseudo = qe.Pseudo()
+        pseudo.load(database= self.database.path)
 
-        self.grid = qe.Grid(name= 'kpoints')
-        self.grid.load(database= self.database.path)
-
-    def _setPrograms(self): 
+        grid = qe.Grid(name= 'kpoints')
+        grid.load(database= self.database.path)
       
         self.mpi    = qe.Mpi()
-        self.pw     = qe.Pwscf(prefix= self.prefix, grid= self.grid,
-                            cell= self.cell, pseudo= self.pseudo)
+        self.pw     = qe.Pwscf(prefix= self.prefix, grid= grid,
+                            atoms= self.atoms, pseudo= pseudo)
         self.ph     = qe.Phonon(prefix= self.prefix, vector = ' 0.0 0.0 0.0')
 
         for obj in [self.mpi, self.pw, self.ph]:
             obj.load(database= self.database.path)
 
         self.programs =  [self.pw, self.ph]
+
+    def _output(self):
+
+        dyndir= self.directory.calc
+        filename= self.ph.parameters.get('fildyn')
+
+        current_dir = os.getcwd() 
+
+        os.chdir(path= dyndir)
+
+        with open(filename, 'r') as f:
+            content = f.readlines()
+        
+        result = []
+        flag_add = False
+        for line in content:
+            if line.find("******")> -1 and flag_add:
+                flag_add = False
+
+            if flag_add == True:
+                result.append(line)
+
+            if line.find("******")> -1  and not flag_add:
+                flag_add = True
+
+        os.chdir(path= self.directory.output)
+
+        with open('result', 'w') as f:
+            for line in result:     
+                f.write(line)
+
+        os.chdir(path= current_dir)
+
+class EquationOfState(AttrDisplay, ICalculation):
+
+    db_strategy = tools.EosDatabase()
+
+    sufix = 'EOS'
+
+    calc_stage = {None}
+
+    grid_variable = ['kpoints_div', 'kpoints_off']
+
+    pw = qe.Pwscf()
+    programs = [pw]
+
+    def __init__(self, structure, prefix):
+        ICalculation.__init__(self, structure = structure, prefix= prefix)
+                              
+    def _setVariables(self):   
+
+        os.environ["ASE_ESPRESSO_COMMAND"] = "pw.x -in PREFIX.pwi > PREFIX.pwo"
+
+        pseudo = qe.Pseudo()   
+        pseudo.load(database= self.database.path)
+
+        grid = qe.Grid(name= 'kpoints')
+        grid.load(database= self.database.path)
+
+        pw = qe.Pwscf(prefix= self.prefix, grid= grid, 
+                           atoms= self.atoms, pseudo= pseudo)
+        pw.load(database= self.database.path)
+
+        calc = ase.calculators.espresso.Espresso(pseudopotentials= pw.pseudo,
+                                                 tstress=False, tprnfor=False,
+                                                 input_data=  pw.parameters)
+        self.atoms.calc = calc
+
+        self.compressions= CellCompression(atoms= self.atoms)
+        self.compressions.load(database= self.database.path)
+
+    def _run(self):
+
+        current_dir = os.getcwd()
+        os.chdir(self.directory.calc)
+
+        cell = self.atoms.get_cell()
+        traj = ase.io.trajectory.Trajectory(self.prefix + '.traj', 'w')
+
+        for x in np.linspace(self.compressions.init, self.compressions.final, self.compressions.n):
+            self.atoms.set_cell(cell * x, scale_atoms=True)
+            self.atoms.get_potential_energy()
+            traj.write(self.atoms)
+
+        os.chdir(current_dir)
+
+    def _output(self):
+
+        current_dir = os.getcwd()
+        os.chdir(self.directory.calc)
+        
+        configs = ase.io.read(self.prefix + '.traj@0:'+str(self.compressions.n))
+
+        # Extract volumes and energies:
+        volumes = [atoms.get_volume() for atoms in configs]
+        energies = [atoms.get_potential_energy() for atoms in configs]
+
+        eos = ase.eos.EquationOfState(volumes, energies, eos = 'birchmurnaghan')
+        v0, e0, B = eos.fit()
+
+        os.chdir(self.directory.output)
+        eos.plot(self.prefix + '-eos.png')
+
+        #prepare result file:
+        filename = 'result'
+        filecontent = ['volume(Angstrom^3)             energie(eV)\n\n']
+        for i in range( 0, self.compressions.n):
+            line = str(volumes[i]) + '          ' + str(energies[i])+'\n'
+            filecontent.append(line)
+        
+        filecontent.append('\n')
+        filecontent.append('optimal volume: ' + str(v0) + ' Angstrom^3\n')
+        filecontent.append('minimum energy: ' + str(e0) + ' eV\n')
+        filecontent.append('bulk modulus: ' + str(B / ase.units.kJ * 1.0e24) + ' GPa\n')
+
+        with open(filename, 'w') as f:     
+            for line in filecontent:
+                f.write(line)
+
+        os.chdir(current_dir)
 
 ################################################################################
 ##----------------------------------------------------------------------------##

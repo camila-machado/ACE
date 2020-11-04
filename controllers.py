@@ -14,19 +14,17 @@
 ##------------------------------------------------------------------------------
 
 """
-from classtools import AttrDisplay
-from models_qe import CellStructure
-from models_program import Database
-from models_program import Directory
-from models_program import InputVariables
-
-import calculations_qe as calc_qe
-import tools
+import os
+import sys
 from pathlib import PurePath
 
-import os
 import pickledb as pk
-import sys
+
+from classtools import AttrDisplay
+import calculations_qe as calc_qe
+from models_qe import File
+from models_program import Directory
+import tools
 
 
 class DatabaseFactory():     
@@ -46,17 +44,22 @@ class DatabaseFactory():
                 database= self._new(inputvar= inputvar, db_name= db_name, 
                                             keys= calc.variables)
             else:
-                database = calc.makeDatabase(name = db_name)
+                dir_database = calc.makeDatabase(name = db_name)
+                database = File(filename= dir_database, 
+                                fileformat= 'db',
+                                read_strategy= tools.ReadDatabase())
 
         return database
 
     def _find(self, db_name):
 
-        work_dir = os.getcwd()
-        db_dir = os.path.join(work_dir, db_name)
+        dir_work = os.getcwd()
+        dir_database = os.path.join(dir_work, db_name)
 
         if os.path.exists(db_dir):
-            database = Database(db_dir)
+            database = File(filename= dir_database, 
+                            fileformat= 'db',
+                            read_strategy= tools.ReadDatabase())
         else:
             raise AssertionError('No database file found')
 
@@ -77,9 +80,11 @@ class DatabaseFactory():
                 if value:
                     db.dadd(sections[i], (key, value))
         
-        db_dir = os.path.join(os.getcwd(), db_name)
+        dir_database = os.path.join(os.getcwd(), db_name)
 
-        database = Database(infile= db_dir)
+        database = File(filename= dir_database, 
+                        fileformat= 'db',
+                        read_strategy= tools.ReadDatabase())
 
         return database
         
@@ -92,11 +97,9 @@ class DirectoryFactory:
 
         if op == 'c':
             directory = self._copy(infile= infile)
-#           return directory
 
         elif op == 'n': 
             directory = self._new(name = dir_name)
-
 
         elif op == 'w':
             directory = self._overwrite(name = dir_name)
@@ -143,35 +146,46 @@ class ControllerProgram(AttrDisplay):
 
     calculation_modes = {'default':'TC',
      'TC': 'superconductivity critical temperature',
-     'EN': 'cell structure energy',
+     'EOS': 'cell equation of state',
      'PH': 'phonons distribution in gamma'}
 
 
     def __init__ (self, clmode):
                                             
-        infile, opmode, inputvar = self._get_input(commands_valid= self.operation_modes)
+        inputcell, opmode, inputvar = self._get_input(commands_valid= self.operation_modes)
  
-        self.cell = CellStructure(infile)
-        self.prefix = PurePath(infile).stem
+        self.cell = File(filename= inputcell, 
+                         fileformat= 'cif',
+                         read_strategy= tools.ReadCif())
+
+        self.prefix = self.cell.name
+
+        self.atoms = self.cell.read()
+
         self.opmode = self._ver_command(command= opmode, 
                                         commands_valid= self.operation_modes)
         self.clmode = self._ver_command(command= clmode, 
                                         commands_valid= self.calculation_modes)
-        self.routine = self._set_calc_routine(clmode= self.clmode)
+        self.routine = self._set_routine(clmode= self.clmode)
         
         if inputvar:
-            self.inputvar = InputVariables(inputvar)
+            self.inputvar = File(filename= inputvar, 
+                                 fileformat= 'in',
+                                 read_strategy= tools.ReadInputvar())
         else:
             self.inputvar = None
             
-    def _set_calc_routine(self, clmode):
+    def _set_routine(self, clmode):
 
         if clmode == 'TC':
-            routine = calc_qe.TC(structure= self.cell)
-        elif clmode == 'EN':
-            routine = calc_qe.Energy(structure= self.cell)
+            routine = calc_qe.TC(structure= self.atoms, 
+                                 prefix= self.prefix)
+        elif clmode == 'EOS':
+            routine = calc_qe.EquationOfState(structure= self.atoms,
+                                              prefix= self.prefix)
         elif clmode == 'PH':
-            routine = calc_qe.PhononGamma(structure= self.cell)
+            routine = calc_qe.PhononGamma(structure= self.atoms, 
+                                          prefix= self.prefix)
         return routine
 
     def calculate(self):
@@ -182,7 +196,9 @@ class ControllerProgram(AttrDisplay):
                                                calc= self.routine)
         
         os.chdir(self.routine.directory.work)
+
         self.cell.copy()
+        
         self.routine.database= self.dbfactory.make(op=self.opmode, 
                                                    prefix= self.prefix, 
                                                    inputvar= self.inputvar, 
@@ -193,7 +209,7 @@ class ControllerProgram(AttrDisplay):
             self.inputvar.rename(name= self.routine.input_name)
         else:
             self._make_inputvar(database= self.routine.database, 
-                            name= self.routine.input_name)
+                                name= self.routine.input_name)
         
         try:       
             self.routine.load(database= self.routine.database.path)
@@ -203,13 +219,13 @@ class ControllerProgram(AttrDisplay):
             raise(Exception)
    
         self.routine.calculate()
+        self.routine.directory.clean()
 
     def _make_inputvar(self, database, name):
         sections, parameters, keys = database.read()
         self.write_method.write(section= sections, filename= name, 
                                file_order=keys, parameters= parameters)
     
-
     def _get_input(self, commands_valid):
         """ 
         This function read input for CriticalTemp instantiation from user shell

@@ -1,9 +1,8 @@
+import os
+
 import ase
 import ase.io
-import os
 import pickledb as pk
-
-import models_program as prg
 
 class IWriteStrategy:
 
@@ -211,8 +210,81 @@ class WriteLambda(IWriteStrategy):
 class IReadStrategy:
 
     def read(**keyargs):
-        
         pass
+
+class ReadCif:
+
+    def read(self, filepath):
+        atoms_structure = ase.io.read(filename = filepath,
+                                    format= 'cif',
+                                    subtrans_included = False,
+                                    primitive_cell= True)
+        return atoms_structure
+
+class ReadDatabase:
+
+    def read(self, filepath):
+        db = pk.load(filepath, False)
+
+        sections = list(db.getall())
+
+        parameters = []
+        keys = []
+        for section in sections:
+            parameters.append(dict(db.dgetall(section))) 
+            keys.append(list(db.dkeys(section)))
+
+        return sections, parameters, keys
+
+class ReadInputvar:
+
+    def read(self, filepath):
+
+        with open(filepath, 'r') as f:
+            file_content = f.readlines()
+
+        sections = []
+        parameters = []
+        keys = []
+
+        sec_key = []
+        sec_par = {}
+        for line in file_content:
+
+            if line.count('&'):
+                section = line.strip('&\n ').lower()
+                sections.append(section)
+                if sec_par:
+                    parameters.append(sec_par.copy())
+                    sec_par.clear()               
+            else:
+                key, value = self._parseLine(line)
+                if key:
+                    sec_par.update({key:value})
+                    sec_key.append(key)
+
+        parameters.append(sec_par)
+        keys.append(sec_key)
+
+        return sections, parameters, keys
+
+    def _parseLine(self, line):
+        eq = line.find('=')
+        if eq == -1:
+            return 0, 0
+        key = line[:eq].strip()
+        value = line[eq+1:].strip()
+
+        return key, self._parseValue(value)
+
+    def _parseValue(self, expr):
+        try:
+            return eval(expr)
+        except:
+            return expr
+        else:
+            return expr
+
 
 ################################################################################
 ##----------------------------------------------------------------------------##
@@ -228,9 +300,7 @@ class IMakeDatabase:
         db = self._make_db(name = name)
         db.dump()
 
-        database = prg.Database(dir_database)
-
-        return database
+        return dir_database
     
     def _make_db(self, name):
         pass
@@ -315,7 +385,7 @@ class TcDatabase (IMakeDatabase):
 
         return db
 
-class EnergyDatabase (IMakeDatabase):
+class EosDatabase (IMakeDatabase):
 
     def _make_db(self, name):
 
@@ -326,7 +396,7 @@ class EnergyDatabase (IMakeDatabase):
         #optional: in case quantum-espresso programs are not in linux $PATH
         #qe - quantum espresso programs' path
         db.dcreate ('calculation')
-        db.dadd('calculation',('routine','ENERGY') )
+        db.dadd('calculation',('routine','EQUATION OF STATE') )
         
         #qe - quantum espresso programs' path
         db.dcreate ('qe')
@@ -336,17 +406,21 @@ class EnergyDatabase (IMakeDatabase):
         db.dcreate('pseudo')
         db.dadd('pseudo',('pseudo_folder','../pseudo/USPP') )
 
-        #mpi - parallen running description
-        db.dcreate ('mpi')
-
-        db.dadd('mpi',('np',4) )
-        db.dadd('mpi',('nk',4) )
-
         #grids - points distance used to calculate grids for scf and phonons calculations
         db.dcreate ('grid')
 
         db.dadd('grid',('kpoints_div',(9,9,9)) )
         db.dadd('grid',('kpoints_off',(0,0,0)) )
+
+        #compression - parameters for cell compression and calculation of energy
+        #only three parameters are needed, the fourth must be zero. 
+        # If all of them are given, the program ignores parameter "step"
+
+        db.dcreate ('compression')
+
+        db.dadd('compression',('n', 20) )
+        db.dadd('compression',('init', 0.8) )
+        db.dadd('compression',('final', 1.2) )
 
         #Quantum-espresso programs' parameters:
         db.dcreate ('pw_par')
@@ -479,10 +553,41 @@ if __name__ == '__main__':
 
     #Test PhononDatabase()
     F = Test2()
-    F.db_method = TcDatabase()
+    F.db_method = PhononDatabase()
     F.make_database(name= 'ph.db')
 
-    #Test EnergyDatabase()
+    #Test EosDatabase()
     G = Test2()
-    G.db_method = TcDatabase()
-    G.make_database(name= 'en.db')
+    G.db_method = EosDatabase()
+    G.make_database(name= 'eos.db')
+
+    class Test3():
+        
+        read_method = IReadStrategy()
+
+        def read(self):
+            assert self.filepath, 'filepath must be defined'
+            content = self.read_method.read(filepath = self.filepath)
+            return content
+    
+    #Test ReadCif()
+    H = Test3()
+    H.read_method = ReadCif()
+    H.filepath = 'Nb.cif'
+    print('read:', H.filepath, '\n\n', H.read(), '\n')
+
+    #Test ReadDatabase()
+    I = Test3()
+    I.read_method = ReadDatabase()
+    I.filepath = 'tc.db'
+    sec, par, key = I.read()
+    print('read:', I.filepath)
+    print('\n', 'sections:', sec, '\n\n','parameters:', par, '\n\n', 'keys:', key, '\n')
+
+    #Test ReadInputvar()
+    J = Test3()
+    J.read_method = ReadInputvar()
+    J.filepath = 'test3.in'
+    sec, par, key = J.read()
+    print('read:', J.filepath)
+    print('\n', 'sections:', sec, '\n\n','parameters:', par, '\n\n', 'keys:', key), '\n'

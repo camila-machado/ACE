@@ -17,11 +17,12 @@ This module provide class interfaces for quantum espresso programs
 import os
 import subprocess
 import sys
+
 import pickledb as pk
 
 import tools 
 from classtools import AttrDisplay
-from models_program import CellStructure
+from models_program import File
 
 class Pseudo(AttrDisplay):
     db_dict = 'pseudo'
@@ -49,7 +50,7 @@ class Pseudo(AttrDisplay):
     
     def selectFiles (self, elements):
         pseudo_dict = {}
-        elements = list( dict.fromkeys(elements) )#remove repeated
+        elements = list(dict.fromkeys(elements) )#remove repeated
         for element in elements:
             pseudo_file = self.files.get(element)
             pseudo_dict.update({element:pseudo_file})
@@ -195,12 +196,13 @@ class Pwscf (IQuantumEspresso):
     variables = ['prefix','restart_mode','pseudo_dir','outdir','occupations',
                  'smearing','degauss','ecutwfc','ecutrho','conv_thr', 'la2F']
     
-    def parameters(self, prefix, pseudo, cell, grid, name = None):
+    def parameters(self, prefix, pseudo, atoms, grid, name = None):
         IQuantumEspresso.parameters(self, prefix= prefix, name= name)
         self.grid = grid
-        self.cell = cell
-        if cell:
-            self.pseudo = pseudo.selectFiles(cell.elements())
+        self.atoms = atoms
+        if atoms:
+            elements = atoms.get_chemical_symbols()
+            self.pseudo = pseudo.selectFiles(elements= elements)
             self.parameters.update({'pseudo_dir': pseudo.folder})
             self._setEcut()
 
@@ -237,7 +239,7 @@ class Pwscf (IQuantumEspresso):
 
     def write(self):
         self.write_strategy.write(filename = self.input,
-                                images = self.cell.read(),
+                                images = self.atoms,
                                 input_data = self.parameters,
                                 pseudopotentials = self.pseudo,
                                 kpts = self.grid.div,
@@ -328,7 +330,7 @@ class Lambda (IQuantumEspresso):
 
     variables = ['zasr', 'fildyn', 'flfrc', 'la2F']
 
-    def parameters(self, prefix, name = None, dyndir= ''):
+    def parameters(self, prefix, name= None, dyndir= ''):
         IQuantumEspresso.parameters(self, prefix= prefix, name = name)
         self.dyndir = dyndir
 
