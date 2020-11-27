@@ -31,10 +31,10 @@ Installation
 
 Instructions in how to use ACE:
 
-    Unpack .tar.gz
-    Open terminal in unpacked folder 
-    Add Quantum Espresso and ace/bin to Linux path(*)   
-    Enable ace/bin/ace.py as executable(**)
+    * Unpack .tar.gz
+    * Open terminal in unpacked folder 
+    * Add Quantum Espresso and ace/bin to Linux path(*)   
+    * Enable ace/bin/ace.py as executable(**)
 
 call in terminal:
 
@@ -62,15 +62,15 @@ $ ace.py <routine> <input_file> <op_mode> <input_var>
 #Enjoy your TC's!!!
 
 (*) You can run the commands in shell Linux environment:
-$ export PATH = $PATH:<quantum_espresso_bin_dir>
-$ export PATH = $PATH:<ace_bin_dir>
-$ echo $PATH (to check result)
-obs: temporary solution, valid only in current shell
+* $ export PATH = $PATH:<quantum_espresso_bin_dir>
+* $ export PATH = $PATH:<ace_bin_dir>
+* $ echo $PATH (to check result)
+* obs: temporary solution, valid only in current shell
 
 or
 
-add the command lines to the .bashrc file for permanet solution, and run:
-$ souce .bashrc (to execut alterations and make them valid)
+* add the command lines to the .bashrc file for permanet solution, and run:
+* $ souce .bashrc (to execut alterations and make them valid)
 
 (**) Run the commands:
 $ chmod +x bin/ace.py
