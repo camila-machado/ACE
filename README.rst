@@ -6,10 +6,6 @@ DCMC - Scientific division of codensed matter
 
 EMA beamline
 
-Project objectif: Automate the use of Quantum Espresso suite (QE) for 
-eletronic-structure calculations of diferent crystals, specially the 
-calculus of critical superconductivity temperature
-
 
 Automated Crystal-based Electronic Structure Calculator
 =======================================================
