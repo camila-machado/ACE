@@ -54,8 +54,6 @@ Installation
        - 'c' (continue) continue a calculation interrupted after some steps  
        - default - 'n'
     
-#Enjoy your TC's!!!
-
 (obs1) You can run the commands in shell Linux environment:
 
 * $ export PATH = $PATH:<quantum_espresso_bin_dir>
@@ -68,8 +66,7 @@ or
 * add the command lines to the .bashrc file for permanet solution 
 * run in terminal: $ souce .bashrc (to execut alterations and make them valid)
 
-(obs2) Run the commands:
-$ chmod +x bin/ace.py
+(obs2) Run shell Linux environment: $ chmod +x bin/ace.py
 
 Testing
 -------
