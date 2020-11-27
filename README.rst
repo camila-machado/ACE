@@ -5,7 +5,7 @@ ACE is a set of tools and Python modules for calculating materials
 propeties with minimun input information, only a cristalographic
 information file is needed. It is based on Quantum ESPRESSO suite
 for electronic structures calculations and ase library for atomistic
-manipulations.
+manipulations. This is a project of the Brazilian Synchrotron Light Laboratory (LNLS).
 
 Requirements
 ------------
