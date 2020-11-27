@@ -29,39 +29,35 @@ Requirements
 Installation
 ------------
 
-Instructions in how to use ACE:
 
-    * Unpack .tar.gz
-    * Open terminal in unpacked folder 
-    * Add Quantum Espresso and ace/bin to Linux path(*)   
-    * Enable ace/bin/ace.py as executable(**)
+* Unpack .tar.gz
+* Add Quantum Espresso and ace/bin to Linux path (obs1)
+* Enable bin/ace.py as executable (obs2)
+* call in terminal: $ ace.py <routine> <input_file> <op_mode> <input_var>
 
-call in terminal:
+   - Routine: (optional)
+       - 'tc' - calculate superconductivity critical temperature
+       - 'ph' - calculate phonons in Gamma
+       - 'eos' - calculate equation of state
+       - default - 'tc'
 
-$ ace.py <routine> <input_file> <op_mode> <input_var>
+   - Input file: (mandatory)
+       - formats - .cif 
 
-- Routine: (optional)
-    'tc' - calculate superconductivity critical temperature
-    'ph' - calculate phonons in Gamma
-    'eos' - calculate equation of state
-    default - 'tc'
+   - Inputvar: (optional)  
+       - formats: TC.in, PH.in, EOS.in
+       - default - internal pre-set variables respectively to the routine chosen
 
-- Input file: (mandatory)
-    formats - .cif 
-
-- Inputvar: (optional)  
-    formats: TC.in, PH.in, EOS.in
-    default - internal pre-set variables respectively to the routine chosen
-
-- Operation modes: (optional)
-    'n' (new) create a new directory for output files
-    'w' (overwrite) in case of name conflict, overwrite the data of a previous calculation
-    'c' (continue) continue a calculation interrupted after some steps  
-    default - 'n'
+   - Operation modes: (optional)
+       - 'n' (new) create a new directory for output files
+       - 'w' (overwrite) in case of name conflict, overwrite the data of a previous calculation
+       - 'c' (continue) continue a calculation interrupted after some steps  
+       - default - 'n'
     
 #Enjoy your TC's!!!
 
-(*) You can run the commands in shell Linux environment:
+(obs1) You can run the commands in shell Linux environment:
+
 * $ export PATH = $PATH:<quantum_espresso_bin_dir>
 * $ export PATH = $PATH:<ace_bin_dir>
 * $ echo $PATH (to check result)
@@ -69,10 +65,10 @@ $ ace.py <routine> <input_file> <op_mode> <input_var>
 
 or
 
-* add the command lines to the .bashrc file for permanet solution, and run:
-* $ souce .bashrc (to execut alterations and make them valid)
+* add the command lines to the .bashrc file for permanet solution 
+* run in terminal: $ souce .bashrc (to execut alterations and make them valid)
 
-(**) Run the commands:
+(obs2) Run the commands:
 $ chmod +x bin/ace.py
 
 Testing
