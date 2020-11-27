@@ -29,11 +29,12 @@ Requirements
 Installation
 ------------
 
-Instructions in how to use ACE
-->Unpack .tar.gz
-->Open terminal in unpacked folder 
-->Add Quantum Espresso and ace/bin to Linux path(*)
-->Enable ace/bin/ace.py as executable(**)
+Instructions in how to use ACE:
+
+    Unpack .tar.gz
+    Open terminal in unpacked folder 
+    Add Quantum Espresso and ace/bin to Linux path(*)   
+    Enable ace/bin/ace.py as executable(**)
 
 call in terminal:
 
@@ -53,9 +54,9 @@ $ ace.py <routine> <input_file> <op_mode> <input_var>
     default - internal pre-set variables respectively to the routine chosen
 
 - Operation modes: (optional)
-    -'n' - (new) create a new directory for output files
-    -'w' - (overwrite) in case of name conflict, overwrite the data of a previous calculation
-    -'c' - (continue) continue a calculation interrupted after some steps  
+    'n' (new) create a new directory for output files
+    'w' (overwrite) in case of name conflict, overwrite the data of a previous calculation
+    'c' (continue) continue a calculation interrupted after some steps  
     default - 'n'
     
 #Enjoy your TC's!!!
