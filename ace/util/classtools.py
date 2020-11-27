@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-# File classtools.py
-# "Assorted class utilities and tools"
+
+# Copyright 2020, Camila Machado de Araújo
+# (see accompanying license files for details).
+
+import pickledb as pk
 
 class AttrDisplay:    
     """
@@ -20,6 +23,8 @@ class AttrDisplay:
         return '[%s: %s]' % (self.__class__.__name__, self.gatherAttrs())
 
 
+############################################################################################
+
 if __name__ == '__main__':    
     
     class TopTest(AttrDisplay):        
@@ -35,5 +40,3 @@ if __name__ == '__main__':
     X, Y = TopTest(), SubTest()    
     print(X)                         # Show all instance attrs    
     print(Y)                         # Show lowest class name
-
-    

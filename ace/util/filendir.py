@@ -1,16 +1,7 @@
+# Copyright 2020, Camila Machado de Araújo
+# (see accompanying license files for details).
+
 """
-##------------------------------------------------------------------------------
-# CNPEM - National Brazilian Center for Research in Energy and Materials
-# Sirius - Research Group EMA
-#
-# Code project: TC_caculus
-# 
-# Objectif:
-# Automate the use of Quantum Espresso (QE) for the calculation of 
-# Superconductivity Critical Temperature (Tc) of diferent molecules and 
-# cell structures
-# 
-##------------------------------------------------------------------------------
 
 This module provide class interfaces for quantum espresso programs
 """
@@ -21,12 +12,11 @@ from pathlib import PurePath
 
 import ase
 import ase.io
-import pickledb as pk
 
-from classtools import AttrDisplay
-import tools
+from util.classtools import AttrDisplay
+import util.io as io
 
-class Directory:
+class Directory(AttrDisplay):
 
     def __init__(self, workpath):
         self.work = workpath
@@ -66,16 +56,21 @@ class Directory:
 
 class File(AttrDisplay):
 
-    read_strategy = tools.IReadStrategy()
+    read_strategy = io.IReadStrategy()
     """
     
     This class provide file interface used to manage database and
     structures files 
     """
     def __init__(self, filename, fileformat, read_strategy):
-        filepath = os.path.join(os.getcwd(), filename)
-        filepath = os.path.normpath(filepath)
-        assert os.path.isfile(filepath), 'This is not a file directory'
+             
+        if os.path.isdir(filename):
+            filepath = os.path.normpath(filename)
+        elif os.path.isfile(filename):
+            filepath = os.path.join(os.getcwd(), filename)
+            filepath = os.path.normpath(filepath)
+        else:
+            assert (os.path.isfile(filepath) and os.path.isdir(filepath)), 'This is not a file directory'
 
         path = PurePath(filepath)
         self.file = os.path.basename(filepath)
@@ -149,10 +144,12 @@ if __name__ == '__main__':
     #Test class CellStructure
     print('\nTEST CELLSTRUCTURE\n')
 
-    cell1 = CellStructure(filename= '/home/camila/Documentos/EMA/Program-TC/cif_database/H3S.cif')
+    cell1 = File(filename= '/home/camila/Documentos/EMA/REPOSITORY/exemples/cif_db/H3S.cif',
+                 fileformat= 'cif', read_strategy= io.ReadCif())
     print('\nTEST 1: criate a CellStructure obj from .cif file from absolute path\n', cell1)
 
-    cell2 = CellStructure(filename='../models_qe/Nb.cif')
+    cell2 = File(filename='../models_qe/Nb.cif',
+                 fileformat= 'cif', read_strategy= io.ReadCif())
     print('\nTEST 2: criate a CellStructure obj from .cif file from relative path\n', cell2)
 
     print('\nTEST 3: copy CellStructure .cif file\n')

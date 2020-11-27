@@ -1,16 +1,7 @@
+# Copyright 2020, Camila Machado de Araújo
+# (see accompanying license files for details).
+
 """
-##------------------------------------------------------------------------------
-# CNPEM - National Brazilian Center for Research in Energy and Materials
-# Sirius - Research Group EMA
-#
-# Code project: TC_caculus
-# 
-# Objectif:
-# Automate the use of Quantum Espresso (QE) for the calculation of 
-# Superconductivity Critical Temperature (Tc) of diferent molecules and 
-# cell structures
-# 
-##------------------------------------------------------------------------------
 
 This module provides class interfaces to calculate the superconductivity 
 critical temperature using quantum espresso programs and qeporgrams module.
@@ -27,12 +18,12 @@ import ase.io.trajectory
 import ase.units
 import pickledb as pk
 
-from classtools import AttrDisplay
-import models_qe as qe
-import models_program as prg
-import tools
+from util.classtools import AttrDisplay
+import util.qe as qe
+import core.database as database
 
 class CellCompression(AttrDisplay):
+    
     db_dict = 'compression'
 
     def __init__(self, atoms, init= 0.8, final= 1.2, n=10):
@@ -41,17 +32,23 @@ class CellCompression(AttrDisplay):
         self.final = final
         self.n = n
 
-    def compress(self):
+    def compress(self, prefix):
         atoms = self.atoms
         cell = atoms.get_cell()
-        
-        compress_atoms = []
+
+        traj = ase.io.trajectory.Trajectory(prefix + '.traj', 'w')
+
         for x in np.linspace(self.init, self.final, self.n):
-            atoms.set_cell(cell * x, scale_atoms=True)
-            compress_atoms.append(atoms)
+            self.atoms.set_cell(cell * x, scale_atoms=True)
+            traj.write(self.atoms)
+
+        compress_atoms = ase.io.read(prefix + '.traj@0:'+str(self.n))
 
         return compress_atoms
-    
+
+    def export(self, prefix):
+        pass
+
     def load(self, database):
         db = pk.load(database, False)
         self.init = float(db.dget(self.db_dict, 'init'))
@@ -65,9 +62,10 @@ class CellCompression(AttrDisplay):
         db.dadd(self.db_dict,('n', self.n))
 
 class TcGridsWrapper(AttrDisplay):
+    
     db_dict = 'grid'
 
-    def __init__(self, atoms , kdistance = 0, qdistance = 0):
+    def __init__(self, atoms, kdistance = 0, qdistance = 0):
         self.atoms = atoms
         self.kdistance = kdistance
         self.qdistance = qdistance
@@ -173,7 +171,7 @@ class TcGridsWrapper(AttrDisplay):
 
 class ICalculation():
 
-    db_strategy = tools.IMakeDatabase()
+    db_strategy = database.IMakeDatabase()
     db_dict = 'calc_stage'
     calc_stage = None
     variables = [['routine'], ['qe_programs'], ['pseudo_folder'], ['np', 'nk']]
@@ -218,7 +216,7 @@ class ICalculation():
         print('\n-> Run programs\n')
 
         for program in self.programs:
-            program.set_Dir(dir= self.directory)
+            program.set_dir(dir= self.directory)
 
             if not(self.calc_stage.get('w_'+program.name)):
                 os.chdir(self.directory.input)
@@ -252,7 +250,7 @@ class ICalculation():
 
 class TC(AttrDisplay, ICalculation):
 
-    db_strategy = tools.TcDatabase()
+    db_strategy = database.TcDatabase()
 
     sufix = 'TC'
 
@@ -313,7 +311,7 @@ class TC(AttrDisplay, ICalculation):
 
 class PhononGamma(AttrDisplay, ICalculation):
 
-    db_strategy = tools.PhononDatabase()
+    db_strategy = database.PhononDatabase()
 
     calc_stage = {'w_scf': False, 'w_ph': False, 
                   'r_scf': False, 'r_ph': False}
@@ -380,7 +378,7 @@ class PhononGamma(AttrDisplay, ICalculation):
 
 class EquationOfState(AttrDisplay, ICalculation):
 
-    db_strategy = tools.EosDatabase()
+    db_strategy = database.EosDatabase()
 
     sufix = 'EOS'
 
@@ -464,7 +462,16 @@ class EquationOfState(AttrDisplay, ICalculation):
             for line in filecontent:
                 f.write(line)
 
+        #cif's
+        i = 1
+        for atom in configs:
+            ase.io.write(filename= self.prefix+str(i)+'.cif',images= atom, 
+                            format= 'cif')
+            i = i+1
+
         os.chdir(current_dir)
+
+
 
 ################################################################################
 ##----------------------------------------------------------------------------##

@@ -1,16 +1,7 @@
+# Copyright 2020, Camila Machado de Araújo
+# (see accompanying license files for details).
+
 """
-##------------------------------------------------------------------------------
-# CNPEM - National Brazilian Center for Research in Energy and Materials
-# Sirius - Research Group EMA
-#
-# Code project: TC_caculus
-# 
-# Objectif:
-# Automate the use of Quantum Espresso (QE) for the calculation of 
-# Superconductivity Critical Temperature (Tc) of diferent molecules and 
-# cell structures
-# 
-##------------------------------------------------------------------------------
 
 This module provide class interfaces for quantum espresso programs
 """
@@ -18,11 +9,13 @@ import os
 import subprocess
 import sys
 
+import ase
+import ase.io
 import pickledb as pk
 
-import tools 
-from classtools import AttrDisplay
-from models_program import File
+import util.io as io 
+from util.classtools import AttrDisplay
+from util.filendir import File
 
 class Pseudo(AttrDisplay):
     db_dict = 'pseudo'
@@ -113,21 +106,20 @@ class Mpi(AttrDisplay):
 
 class IQuantumEspresso(AttrDisplay):
 
-    write_strategy = tools.IWriteStrategy()
     program = None
     db_dct = None
     variables = None
-    section = 'input'
+    section_name = 'input'
 
     def __init__(self, **keyargs):  
-        assert self.variables, 'File parameters order must be defined!'
         assert self.program, 'Program name must be defined!'
         assert self.db_dict, 'Database dict string name must be defined!'
+        assert self.variables, 'File parameters order must be defined!'
 
         if len(keyargs) > 0:
-            self.parameters(**keyargs)
+            self.setparameters(**keyargs)
 
-    def parameters(self, prefix, name = None):
+    def setparameters(self, prefix, name = None):
 
         if name:
             self.name = name
@@ -137,12 +129,8 @@ class IQuantumEspresso(AttrDisplay):
         self.input =  prefix + '.' + self.name + '.in'
         self.output =  prefix + '.' + self.name + '.out'   
         self.parameters = {}
-        self._prefixParameters(prefix)
-    
-    def _prefixParameters(self, prefix):
-        assert False, '"setParameters must be defined!"'
 
-    def set_Dir (self, dir):
+    def set_dir (self, dir):
         self.input = os.path.join(dir.input, self.input)
         self.output = os.path.join(dir.output, self.output)
         self.calc = dir.calc
@@ -159,7 +147,13 @@ class IQuantumEspresso(AttrDisplay):
         
         for key in keys:
             self.parameters.update({key: par.get(key)})
-    
+
+    def write(self):
+        io.write_section(section = self.section_name, 
+                         filename = self.input, 
+                         file_order = self.variables, 
+                         parameters = self.parameters)
+
     def run(self, mpi):
         command = self._command(mpi= mpi)
 
@@ -183,33 +177,25 @@ class IQuantumEspresso(AttrDisplay):
             text = '{program_txt} fineshed! :D'
             print(text.format(program_txt = self.name))
 
-    def write(self):
-        self.write_strategy.write(section = self.section, 
-                                 filename = self.input, 
-                                 file_order = self.variables, 
-                                 parameters = self.parameters)
-
 class Pwscf (IQuantumEspresso):
-    write_strategy = tools.WriteScf()
     program = 'pw.x'
     db_dict = 'pw_par'
     variables = ['prefix','restart_mode','pseudo_dir','outdir','occupations',
                  'smearing','degauss','ecutwfc','ecutrho','conv_thr', 'la2F']
     
-    def parameters(self, prefix, pseudo, atoms, grid, name = None):
-        IQuantumEspresso.parameters(self, prefix= prefix, name= name)
+    def setparameters(self, prefix, pseudo, atoms, grid, name = None):
+        IQuantumEspresso.setparameters(self, prefix= prefix, name= name)
+        self.parameters.update({'prefix': prefix})
+        self.parameters.update({'outdir': './out'})
         self.grid = grid
         self.atoms = atoms
+        
         if atoms:
             elements = atoms.get_chemical_symbols()
             self.pseudo = pseudo.selectFiles(elements= elements)
             self.parameters.update({'pseudo_dir': pseudo.folder})
             self._setEcut()
-
-    def _prefixParameters(self, prefix):
-        self.parameters.update({'prefix': prefix})
-        self.parameters.update({'outdir': './out'})
-
+        
     def _setEcut(self):
         pseudo_files =[]
         for name in self.pseudo.values():
@@ -238,63 +224,56 @@ class Pwscf (IQuantumEspresso):
         self.parameters.update({'ecutrho': ecutrho})
 
     def write(self):
-        self.write_strategy.write(filename = self.input,
-                                images = self.atoms,
-                                input_data = self.parameters,
-                                pseudopotentials = self.pseudo,
-                                kpts = self.grid.div,
-                                koffset = self.grid.off)
+        ase.io.write(filename = self.input,
+                     images = self.atoms,
+                     format = 'espresso-in',
+                     input_data = self.parameters,
+                     pseudopotentials = self.pseudo,
+                     kpts = self.grid.div,
+                     koffset = self.grid.off)
+
 
 class Pwscf1(Pwscf):
 
     def write(self):
         Pwscf.write(self)
-        self.write_strategy.addParameter(key= 'la2F', value = '.true.', 
-                                         section = 'system', filename = self.input)
+        io.add_parameter(filename = self.input, key= 'la2F', 
+                         value = '.true.', section = 'system')
 
 class Phonon (IQuantumEspresso):
-
-    write_strategy = tools.WriteSection()
     
     program = 'ph.x'
     db_dict = 'ph_par'
-
     variables = ['prefix', 'outdir', 'tr2_ph', 'fildyn','ldisp', 'nq1', 'nq2', 'nq3', 
-                  'electron_phonon','fildvscf','recover', 'el_ph_sigma', 'el_ph_nsigma']
-                
-    section = 'inputph'
+                  'electron_phonon','fildvscf','recover', 'el_ph_sigma', 'el_ph_nsigma']             
+    section_name = 'inputph'
 
-    def parameters(self, prefix, name = None, grid = None, vector= None):
-        IQuantumEspresso.parameters(self, prefix= prefix, name = name)
+    def setparameters(self, prefix, name = None, grid = None, vector= None):
+        IQuantumEspresso.setparameters(self, prefix= prefix, name = name)
         self.vector = vector
+        self.parameters.update({'prefix': prefix})
+        self.parameters.update({'outdir': './out'})
+        self.parameters.update({'fildyn': prefix+'.dyn'})
+        self.parameters.update({'fildvscf': prefix+'.dv'})
         if grid:
             self.parameters.update({'nq1': grid.div[0]})
             self.parameters.update({'nq2': grid.div[1]})
             self.parameters.update({'nq3': grid.div[2]})
 
-    def _prefixParameters(self, prefix):
-        self.parameters.update({'prefix': prefix})
-        self.parameters.update({'outdir': './out'})
-        self.parameters.update({'fildyn': prefix+'.dyn'})
-        self.parameters.update({'fildvscf': prefix+'.dv'})
-
     def write(self):
         IQuantumEspresso.write(self)
         if self.vector:
-            self.write_strategy.addLine(line= self.vector, 
-                                       position= '/\n', 
-                                       filename= self.input)
+           io.add_line(line= self.vector, position= '/\n',
+                       filename= self.input)
 
 class Q2r (IQuantumEspresso):
 
-    write_strategy = tools.WriteSection()
-
     program = 'q2r.x'
     db_dict = 'q2r_par'
-
     variables = ['zasr', 'fildyn', 'flfrc', 'la2F']
 
-    def _prefixParameters(self, prefix):
+    def setparameters(self, prefix, name = None):
+        IQuantumEspresso.setparameters(self, prefix= prefix, name = name)
         self.parameters.update({'fildyn': prefix+'.dyn'})
         self.parameters.update({'flfrc': prefix+'.frc'})
     
@@ -304,15 +283,13 @@ class Q2r (IQuantumEspresso):
 
 class Matdyn (IQuantumEspresso):
 
-    write_strategy = tools.WriteSection()
-
     program = 'matdyn.x'
     db_dict = 'matdyn_par'
-
     variables = ['asr', 'flfrc', 'flfrq', 'la2F', 'dos', 'fldos', 'nk1',
                   'nk2','nk3','ndos']
 
-    def _prefixParameters(self, prefix):
+    def setparameters(self, prefix, name = None):
+        IQuantumEspresso.setparameters(self, prefix= prefix, name = name)
         self.parameters.update({'flfrc': prefix+'.frc'})
         self.parameters.update({'flfrq': prefix+'.freq'})
         self.parameters.update({'fldos': prefix+'.phonon.dos'})
@@ -323,18 +300,13 @@ class Matdyn (IQuantumEspresso):
 
 class Lambda (IQuantumEspresso):
 
-    write_strategy = tools.WriteLambda()
-
     program = 'lambda.x'
     db_dict = 'lambda_par'
-
     variables = ['zasr', 'fildyn', 'flfrc', 'la2F']
 
-    def parameters(self, prefix, name= None, dyndir= ''):
-        IQuantumEspresso.parameters(self, prefix= prefix, name = name)
+    def setparameters(self, prefix, name= None, dyndir= ''):
+        IQuantumEspresso.setparameters(self, prefix= prefix, name = name)
         self.dyndir = dyndir
-
-    def _prefixParameters(self, prefix):
         self.parameters.update({'fildyn': prefix+'.dyn'})
 
     def _command(self, mpi):
@@ -342,11 +314,11 @@ class Lambda (IQuantumEspresso):
         return command
 
     def write(self):
-        self.write_strategy.write(filename= self.input, 
-                                  dyndir= self.dyndir,
-                                  sigma_omega= self.parameters.get('sigma_omega'), 
-                                  mu= self.parameters.get('mu'), 
-                                  fildyn= self.parameters.get('fildyn'))    
+        io.write_lambda(filename= self.input, 
+                        dyndir= self.dyndir,
+                        sigma_omega= self.parameters.get('sigma_omega'), 
+                        mu= self.parameters.get('mu'), 
+                        fildyn= self.parameters.get('fildyn'))    
 
 ################################################################################
 ##----------------------------------------------------------------------------##

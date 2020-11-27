@@ -14,8 +14,6 @@
 
 #->Unpack .tar.gz
 #->Open terminal in unpacked folder 
-#->Open write.py and change variables at will
-#->Remember to save the pseudo potential files you need in 'pseudo' folder
 #->Add Quantum Espresso and program.py to Linux path(*)
 #->Enable program.py as executable(**)
 
@@ -23,9 +21,8 @@
 
 $ program.py <directory/input_file> <command> <directory/input_var>
 
-- Programs available: 'tc.py', 'eos.py', 'phonon.py'
 - Input file format: '.cif'
-- Input var format: '.TC.in', 'EOS.in', 'PH.in'
+- Input var format: '.TC.in'
 - Commands:
     'n' - (new) create a new directory for output files
     'w' - (overwrite) in case of name conflict, overwrite the data of a 

@@ -1,6 +1,4 @@
-Nb*/
-Nb/
-Hg*/
-Hg/
-H3S-200GPa*/
-*.tar.xz
+*_TC*
+*_PH*
+*_EOS*
+*__pychache__*
