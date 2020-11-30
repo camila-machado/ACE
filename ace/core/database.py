@@ -33,10 +33,6 @@ class TcDatabase (IMakeDatabase):
         #qe - quantum espresso programs' path
         db.dcreate ('calculation')
         db.dadd('calculation',('routine','TC') )
-        
-        #qe - quantum espresso programs' path
-        db.dcreate ('qe')
-        db.dadd('qe',('qe_programs','') )
 
         #pseudo - pseudo potentials' folder path
         db.dcreate('pseudo')
@@ -114,13 +110,15 @@ class EosDatabase (IMakeDatabase):
         db.dcreate ('calculation')
         db.dadd('calculation',('routine','EQUATION OF STATE') )
         
-        #qe - quantum espresso programs' path
-        db.dcreate ('qe')
-        db.dadd('qe',('qe_programs','') )
-
         #pseudo - pseudo potentials' folder path
         db.dcreate('pseudo')
         db.dadd('pseudo',('pseudo_folder', pseudo.DIR+'/USPP') )
+
+        #mpi - parallen running description
+        db.dcreate ('mpi')
+
+        db.dadd('mpi',('np',4) )
+        db.dadd('mpi',('nk',4) )
 
         #grids - points distance used to calculate grids for scf and phonons calculations
         db.dcreate ('grid')
@@ -161,10 +159,6 @@ class PhononDatabase (IMakeDatabase):
         #qe - quantum espresso programs' path
         db.dcreate ('calculation')
         db.dadd('calculation',('routine','PH') )
-        
-        #qe - quantum espresso programs' path
-        db.dcreate ('qe')
-        db.dadd('qe',('qe_programs','') )
 
         #pseudo - pseudo potentials' folder path
         db.dcreate('pseudo')

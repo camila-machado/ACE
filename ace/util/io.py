@@ -247,7 +247,7 @@ class ReadInputvar(IReadStrategy):
         parameters.append(sec_par)
         keys.append(sec_key)
 
-        return sections, parameters, keys
+        return sections, parameters
 
     def _parse_line(self, line):
         eq = line.find('=')

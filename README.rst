@@ -1,25 +1,11 @@
-Copyright 2020, Camila Machadod de Araújo
-
-LNLS - Brazilian Synchrotron Light Laboratory
-DCMC - Scientific division of codensed matter
-EMA beamline
-
-Objectif
---------
-
-Automate the use of Quantum Espresso suite (QE) for eletronic-structure
-calculations of diferent crystals, specially the calculus of critical 
-superconductivity temperature
-
-
-Automated Crystal-based ELectronic Structure Calculator
+Automated Crystal-based Electronic Structure Calculator
 =======================================================
 
 ACE is a set of tools and Python modules for calculating materials 
 propeties with minimun input information, only a cristalographic
 information file is needed. It is based on Quantum ESPRESSO suite
 for electronic structures calculations and ase library for atomistic
-manipulations.
+manipulations. This is a project of the Brazilian Synchrotron Light Laboratory (LNLS).
 
 Requirements
 ------------
@@ -28,65 +14,59 @@ Requirements
 * NumPy_ (base N-dimensional array package)
 * SciPy_ (library for scientific computing)
 * Ase_ (library for atomistic simulations)
-* Quantum-ESPRESSO 6.5 or later
+* Quantum-ESPRESSO_ 6.5 or later
 
 
 Installation
 ------------
 
-Instructions in how to use TC_calculus
+Add ~/ace to your $PYTHONPATH environment variable, add
+~/ace/bin and ~/QE/bin to $PATH (assuming ~/ase is where your ACE folder is
+and ~/QE is where Quantum ESPRESSO folder is).
 
-->Unpack .tar.gz
-->Open terminal in unpacked folder 
-->Add Quantum Espresso and program.py to Linux path(*)
-->Enable program.py as executable(**)
 
-call in terminal:
+* 'add to path temporary' tutorial: 
+   - $ export PYTHONPATH =  ~/ace
+   - $ export PATH = $PATH: ~QE/bin
+   - $ export PATH = $PATH: ~ace/bin
+   - $ echo $PATH (to check result)
 
-$ program.py <directory/input_file> <command> <directory/input_var>
+* 'add to path permanent' tutorial:     
+   - add the same command lines to the .bashrc file 
+   - run in terminal: $ souce .bashrc (to execut alterations and make them valid)
 
-- Program:
-    'tc.py' - calculate superconductivity critical temperature
-    'phonon.py' - calculate phonons in Gamma
-    'eos.py' - calculate equation of state
-- Input file format: '.cif'
-- Inputvar format: '.TC.in', 'PH.in',  'EOS.in'
-- Commands:
-    'n' - (new) create a new directory for output files
-    'w' - (overwrite) in case of name conflict, overwrite the data of a 
-          previous calculation
-    'c' - (continue) continue a calculation interrupted after some steps  
+* allow ace.py as executable tutorial:
+   - $ chmod +x ~/ace/bin/ace.py
 
-obs1: Command is optional, the default operation mode is 'n' (new)
-obs2: Inputvar file is optional, the default variables are defined in
-      the program
 
-#Enjoy your TC's!!!
+Execution
+------------
 
-(*) You can run the commands in shell Linux environment:
-$ export PATH = $PATH:<quantum_espresso_bin_dir>
-$ export PATH = $PATH:<Program.py_dir>
-$ export PATH = $PATH:<Write.py_dir>
-$ echo $PATH (to check result)
-obs: temporary solution, valid only in current shell
+$ ace.py <routine> <input_file> <op_mode> <input_var>
 
-or
+- Routine: (optional)
+    - 'tc' - calculate superconductivity critical temperature
+    - 'ph' - calculate phonons in Gamma
+    - 'eos' - calculate equation of state
+    - default - 'tc'
 
-add the command lines to the .bashrc file for permanet solution, and run:
-$ souce .bashrc (to execut alterations and make them valid)
+- Input file: (mandatory)
+    - formats - .cif 
 
-(**) Run the commands:
-$ chmod +x calculations_qe.py
-$ chmod +x controllers.py
-$ chmod +x models_program.py
-$ chmod +x models_qe.py
-$ chmod +x tc.py
-$ chmod +x tools.py
+- Inputvar: (optional)  
+    - formats: TC.in, PH.in, EOS.in
+    - default - internal pre-set variables respectively to the routine chosen
+
+- Operation modes: (optional)
+    - 'n' (new) create a new directory for output files
+    - 'w' (overwrite) in case of name conflict, overwrite the data of a previous calculation
+    - 'c' (continue) continue a calculation interrupted after some steps  
+    - default - 'n'
 
 
 Testing
 -------
-
+(in construction)
 
 Contact
 -------
@@ -95,15 +75,12 @@ Contact
 
 Please send us bug-reports, patches, code, ideas and questions.
 
-
 Example
 -------
-
-
+(in construction)
 
 .. _Python: http://www.python.org/
 .. _NumPy: http://docs.scipy.org/doc/numpy/reference/
 .. _SciPy: http://docs.scipy.org/doc/scipy/reference/
-.. _Matplotlib: http://matplotlib.org/
-.. _ase-users: https://listserv.fysik.dtu.dk/mailman/listinfo/ase-users
+.. _Ase: https://listserv.fysik.dtu.dk/mailman/listinfo/ase-users
 .. _Quantum-ESPRESSO: https://www.quantum-espresso.org/

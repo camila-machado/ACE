@@ -24,9 +24,10 @@ import core.database as database
 
 class CellCompression(AttrDisplay):
     
+    variables = ['n', 'init', 'final']
     db_dict = 'compression'
 
-    def __init__(self, atoms, init= 0.8, final= 1.2, n=10):
+    def __init__(self, atoms= None, init= 0.8, final= 1.2, n=10):
         self.atoms = atoms
         self.init = init
         self.final = final
@@ -174,7 +175,7 @@ class ICalculation():
     db_strategy = database.IMakeDatabase()
     db_dict = 'calc_stage'
     calc_stage = None
-    variables = [['routine'], ['qe_programs'], ['pseudo_folder'], ['np', 'nk']]
+    variables = [['routine'], ['pseudo_folder'], ['np', 'nk']]
     grid_variable = None
     programs = None
     sufix = None
@@ -325,7 +326,7 @@ class PhononGamma(AttrDisplay, ICalculation):
     
     def __init__(self, structure, prefix):
         ICalculation.__init__(self, structure = structure, prefix= prefix)
-        
+
     def _setVariables(self):
         
         pseudo = qe.Pseudo()
@@ -387,12 +388,13 @@ class EquationOfState(AttrDisplay, ICalculation):
     grid_variable = ['kpoints_div', 'kpoints_off']
 
     pw = qe.Pwscf()
-    programs = [pw]
+    cell_compression = CellCompression() 
+    programs = [cell_compression, pw]
 
     def __init__(self, structure, prefix):
         ICalculation.__init__(self, structure = structure, prefix= prefix)
                               
-    def _setVariables(self):   
+    def _setVariables(self):
 
         os.environ["ASE_ESPRESSO_COMMAND"] = "pw.x -in PREFIX.pwi > PREFIX.pwo"
 

@@ -90,7 +90,7 @@ def _get_input():
     flag_op= True
     flag_cl = True
 
-    if len(user_input) < 2 or len(user_input) > 5:
+    if len(user_input) < 1 or len(user_input) > 4:
         raise AssertionError('Bad number of input arguments')
 
     for i in user_input:
@@ -124,7 +124,7 @@ def _iscommand(command, allcommands):
 def _isfile(fil, format):
 
     try:
-        filformat = fil.split('.')[1]
+        filformat = fil.split('.')[-1]
     except IndexError:
         return False
     else: 
