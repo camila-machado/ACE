@@ -26,7 +26,7 @@ and ~/QE is where Quantum ESPRESSO folder is).
 
 
 * 'add to path temporary' tutorial: 
-   - $ export PATHPYTHON =  ~/ace
+   - $ export PYTHONPATH =  ~/ace
    - $ export PATH = $PATH: ~QE/bin
    - $ export PATH = $PATH: ~ace/bin
    - $ echo $PATH (to check result)
@@ -44,7 +44,7 @@ Execution
 
 $ ace.py <routine> <input_file> <op_mode> <input_var>
 
-- Routine: (optional)
+- Routine: (mandatory)
     - 'tc' - calculate superconductivity critical temperature
     - 'ph' - calculate phonons in Gamma
     - 'eos' - calculate equation of state
