@@ -3,41 +3,59 @@ Automated Crystal-based Electronic Structure Calculator
 
 ACE is a set of tools and Python modules for calculating materials 
 propeties with minimun input information, only a cristalographic
-information file is needed. It is based on Quantum ESPRESSO suite
-for electronic structures calculations and ase library for atomistic
+information file is needed. It is an interface to the Quantum ESPRESSO suite
+for electronic structures calculations and uses the ase library for atomistic
 manipulations. This is a project of the Brazilian Synchrotron Light Laboratory (LNLS).
 
 Requirements
 ------------
 
+* Quantum-ESPRESSO_ 6.5 or later
 * Python_ 3.6 or later
+
+Python libraries:
+
 * NumPy_ (base N-dimensional array package)
 * SciPy_ (library for scientific computing)
 * Ase_ (library for atomistic simulations)
-* Quantum-ESPRESSO_ 6.5 or later
 
 
 Installation
 ------------
 
-Add ~/ace to your $PYTHONPATH environment variable, add
-~/ace/bin and ~/QE/bin to $PATH (assuming ~/ase is where your ACE folder is
-and ~/QE is where Quantum ESPRESSO folder is).
+For performing the calculations, ACE and Quantum-ESRESSO bin directories must
+be added to your PATH environment variable so that the contents of both can be
+called by the system at any working directory. Also, the ACE folder must be
+added to your $PYTHONPATH environment variable and the bin/ace.py file must be
+set as an executable.
 
+Assuming that ~/ase is your ACE and ~/QE your Quantum ESPRESSO folder, run on your teminal:
 
-* 'add to path temporary' tutorial: 
-   - $ export PYTHONPATH =  ~/ace
-   - $ export PATH = $PATH: ~QE/bin
-   - $ export PATH = $PATH: ~ace/bin
-   - $ echo $PATH (to check result)
+.. code-block:: shell
 
-* 'add to path permanent' tutorial:     
-   - add the same command lines to the .bashrc file 
-   - run in terminal: $ souce .bashrc (to execut alterations and make them valid)
+    export PYTHONPATH =  ~/ace
+    export PATH = $PATH: ~/QE/bin
+    export PATH = $PATH: ~/ace/bin
+    # Note that you should replace ~/QE and ~/ace by the
+    # actual Quantum-ESPRESSO and ACE paths on your system.
+    
+This will update PATH and PYTHONPATH for your current session. For making the update permanent, add lines above to your ~/.bashrc file and run:
 
-* allow ace.py as executable tutorial:
-   - $ chmod +x ~/ace/bin/ace.py
+.. code-block:: shell
 
+    souce .bashrc
+
+For checking the results:
+
+.. code-block:: shell
+
+    echo $PATH
+
+Finally, allow ace.py to be an executable:
+
+.. code-block:: shell
+
+    chmod +x ~/ace/bin/ace.py
 
 Execution
 ------------
