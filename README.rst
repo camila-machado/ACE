@@ -23,19 +23,19 @@ Python libraries:
 Installation
 ------------
 
-For performing the calculations, ACE and Quantum-ESRESSO bin directories must
+For performing the calculations, ACE and Quantum ESPRESSO bin directories must
 be added to your PATH environment variable so that the contents of both can be
 called by the system at any working directory. Also, the ACE folder must be
 added to your $PYTHONPATH environment variable and the bin/ace.py file must be
 set as an executable.
 
-Assuming that ~/ase is your ACE and ~/QE your Quantum ESPRESSO folder, run on your teminal:
+Assuming that ~/ase is your ACE folder and ~/QE your Quantum ESPRESSO folder, run on your teminal:
 
 .. code-block:: shell
 
-    export PYTHONPATH =  ~/ace
-    export PATH = $PATH: ~/QE/bin
-    export PATH = $PATH: ~/ace/bin
+    export PYTHONPATH=$PYTHONPATH:~/ACE/ace
+    export PATH=$PATH:~/qe-6.7/bin
+    export PATH=$PATH:~/ACE/ace/bin
     # Note that you should replace ~/QE and ~/ace by the
     # actual Quantum-ESPRESSO and ACE paths on your system.
     
@@ -43,13 +43,14 @@ This will update PATH and PYTHONPATH for your current session. For making the up
 
 .. code-block:: shell
 
-    souce .bashrc
+    source ~/.bashrc
 
 For checking the results:
 
 .. code-block:: shell
 
     echo $PATH
+    echo $PYTHONPATH
 
 Finally, allow ace.py to be an executable:
 
