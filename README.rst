@@ -102,4 +102,5 @@ Example
 .. _NumPy: http://docs.scipy.org/doc/numpy/reference/
 .. _SciPy: http://docs.scipy.org/doc/scipy/reference/
 .. _Ase: https://listserv.fysik.dtu.dk/mailman/listinfo/ase-users
+.. _pickleDB: https://pythonhosted.org/pickleDB/
 .. _Quantum-ESPRESSO: https://www.quantum-espresso.org/
