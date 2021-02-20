@@ -34,7 +34,7 @@ Assuming that ~/ase is your ACE folder and ~/QE your Quantum ESPRESSO folder, ru
 .. code-block:: shell
 
     export PYTHONPATH=$PYTHONPATH:~/ACE/ace
-    export PATH=$PATH:~/qe-6.7/bin
+    export PATH=$PATH:~/QE/bin
     export PATH=$PATH:~/ACE/ace/bin
     # Note that you should replace ~/QE and ~/ace by the
     # actual Quantum-ESPRESSO and ACE paths on your system.
@@ -61,28 +61,36 @@ Finally, allow ace.py to be an executable:
 Execution
 ------------
 
-$ ace.py <routine> <input_file> <op_mode> <input_var>
+After including the ACE directories to your system PATH and setting ace.py as an executable, the program may be called from anywhere on the system by:
 
-- Routine: (optional)
-    - 'tc' - calculate superconductivity critical temperature
-    - 'ph' - calculate phonons in Gamma
-    - 'eos' - calculate equation of state
-    - default - 'tc'
+.. code-block::
 
-- Input file: (mandatory)
-    - formats - .cif 
+    ace.py <routine> <input_file> <op_mode> <input_var>
+    
+With the up to three parameters are:
 
-- Inputvar: (optional)  
-    - formats: TC.in, PH.in, EOS.in
-    - default - internal pre-set variables respectively to the routine chosen
+- <routine> (optional)
+    The calculation you want to perform. Currently available values are:
+        - tc - calculate superconductivity critical temperature
+        - ph - calculate phonons in Gamma
+        - eos - calculate equation of state
+        Default - tc
+    
+- <input_file>: (mandatory)
+    File in .cif format containing the desired crystal structure
+        Default - None
+
+- <input_var>: (optional)  
+    Input file containing calculation parameters. Every calculation has its own input file type (TC.in, PH.in, EOS.in), but all lf than have the same. format
+        Default - If no <input_var> file is used, ACE will mount its own input file based on internally defined default parameters. Such parameters are usually enough for quick caltulations. The <input_var> file thus generated is stored in the output folder and may be modified for performing another calculation.
 
 - Operation modes: (optional)
-    - 'n' (new) create a new directory for output files
-    - 'w' (overwrite) in case of name conflict, overwrite the data of a previous calculation
-    - 'c' (continue) continue a calculation interrupted after some steps  
-    - default - 'n'
-
-
+    Defines behaviour in terms of previously performed calculation with the same .cif file. Currently available options are:
+        - n - (new) create a new directory for output files
+        - w - (overwrite) in case of name conflict, overwrite the data of a previous calculation
+        - c - (continue) continue a calculation interrupted after some steps  
+        Default - n
+    
 Testing
 -------
 (in construction)
@@ -101,6 +109,6 @@ Example
 .. _Python: http://www.python.org/
 .. _NumPy: http://docs.scipy.org/doc/numpy/reference/
 .. _SciPy: http://docs.scipy.org/doc/scipy/reference/
-.. _Ase: https://listserv.fysik.dtu.dk/mailman/listinfo/ase-users
+.. _Ase: https://wiki.fysik.dtu.dk/ase/
 .. _pickleDB: https://pythonhosted.org/pickleDB/
 .. _Quantum-ESPRESSO: https://www.quantum-espresso.org/
