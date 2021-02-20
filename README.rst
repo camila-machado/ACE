@@ -98,7 +98,7 @@ When performing the calculation, a new directory named after the .cif file used 
     - /input directory containing input files for the respective Quantum ESPRESSO calculation. These files might also be used for performing the same calculaiton, or a similar one by slighttly modifying the files, directly by running Quantum ESPRESSO, without ACE
     - /output directory containing the output Quantum ESPRESSO files and a 'result'file containing the usually most relevant result of the calculation
     
-*Exemple"
+*Exemple*
 
 A user may run:
 
