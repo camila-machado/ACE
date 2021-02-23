@@ -100,6 +100,8 @@ def _isnumber (number):
     number = number.replace('.','')
     number = number.replace(',','')
     number = number.replace(' ','')
+    number = number.replace('[','')
+    number = number.replace(']','')
     number = number.strip('()')
     test = number.isnumeric()
     return test
