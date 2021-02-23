@@ -132,7 +132,7 @@ Testing
 Contact
 -------
 
-* Mailing: camila.araujo@lnls.br
+* Mailing: camila.araujo@ee.ufcg.edu.br ; lucas.francisco@lnls.br
 
 Please send us bug-reports, patches, code, ideas and questions.
 
