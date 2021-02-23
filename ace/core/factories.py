@@ -70,7 +70,7 @@ def _dbfind(db_name):
 def _dbnew(filvar, db_name, keys):
 
     sections, parameters = filvar.read()
-    print(sections, parameters, keys)
+    #print(sections, parameters, keys)
 
     _DATABASE = db_name
 

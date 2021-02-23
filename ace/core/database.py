@@ -191,6 +191,10 @@ class PhononDatabase (IMakeDatabase):
         db.dadd('ph_par',('recover','.false.') )
         db.dadd('ph_par',('ldisp','.false.') )
 
+        db.dcreate ('dynmat_par')
+
+        db.dadd('dynmat_par',('asr','crystal') )
+
         return db
 
         ################################################################################
