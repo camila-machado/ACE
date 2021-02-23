@@ -119,9 +119,9 @@ If a user wants to repeat this calculation with, for example, a denser K-mesh, t
 Pseudopotentials
 ----------------
 
-This package accompanies PAW and Ultrasoft non-relatibistic potentials with exchange-correlation functionals of type GGA.
+This package accompanies PAW and Ultrasoft non-relativistic pseudopotentials with exchange-correlation functionals of type GGA (ace/pseudo directory). By default, ultrasoft pseudopotentials are used.
 
-All the pseudopotentials are from PSlibrary (DOI: 10.1016/j.commatsci.2014.07.043, WEB: http://www.quantum-espresso.org/pseudopotentials, LICENSE: GNU General Public License (version 2 or later))
+All the included pseudopotentials are from PSlibrary (DOI: 10.1016/j.commatsci.2014.07.043, WEB: http://www.quantum-espresso.org/pseudopotentials, LICENSE: GNU General Public License (version 2 or later))
 
 Please cite the pseudopotentials used and give proper credit to their authors. More infomration on the PSlibrary library, including citation information, may be found at: https://dalcorso.github.io/pslibrary/
 
