@@ -67,7 +67,7 @@ After including the ACE directories to your system PATH and setting ace.py as an
 
     ace.py <routine> <input_file> <op_mode> <input_var>
     
-With the up to three parameters are:
+Up to three inputs (described bellow) are supplied after calling ace.py. Their order does not matter.
 
 - <routine> (optional)
     The calculation you want to perform. Currently available values are:
