@@ -1,4 +1,5 @@
 # Copyright 2020, Camila Machado de Araújo
+# Copyright 2021, Lucas Henrique Francisco 
 # (see accompanying license files for details).
 
 """
@@ -70,7 +71,6 @@ def _dbfind(db_name):
 def _dbnew(filvar, db_name, keys):
 
     sections, parameters = filvar.read()
-    #print(sections, parameters, keys)
 
     _DATABASE = db_name
 

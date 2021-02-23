@@ -1,4 +1,5 @@
 # Copyright 2020, Camila Machado de Araújo
+# Copyright 2021, Lucas Henrique Francisco 
 # (see accompanying license files for details).
 
 import os
