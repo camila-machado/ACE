@@ -1,4 +1,5 @@
 # Copyright 2020, Camila Machado de Araújo
+# Copyright 2021, Lucas Henrique Francisco 
 # (see accompanying license files for details).
 
 import os
@@ -190,6 +191,10 @@ class PhononDatabase (IMakeDatabase):
         db.dadd('ph_par',('tr2_ph',1e-12) )
         db.dadd('ph_par',('recover','.false.') )
         db.dadd('ph_par',('ldisp','.false.') )
+
+        db.dcreate ('dynmat_par')
+
+        db.dadd('dynmat_par',('asr','crystal') )
 
         return db
 

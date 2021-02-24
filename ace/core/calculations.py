@@ -1,4 +1,5 @@
 # Copyright 2020, Camila Machado de Araújo
+# Copyright 2021, Lucas Henrique Francisco   
 # (see accompanying license files for details).
 
 """
@@ -320,9 +321,10 @@ class PhononGamma(AttrDisplay, ICalculation):
     
     grid_variable = ['kpoints_div', 'coarse_off', 'kpoints_off']
 
-    pw    = qe.Pwscf1()
-    ph    = qe.Phonon()
-    programs = [pw, ph] 
+    pw     = qe.Pwscf1()
+    ph     = qe.Phonon()
+    dynmat = qe.Dynmat()
+    programs = [pw, ph, dynmat] 
     
     def __init__(self, structure, prefix):
         ICalculation.__init__(self, structure = structure, prefix= prefix)
@@ -339,16 +341,17 @@ class PhononGamma(AttrDisplay, ICalculation):
         self.pw     = qe.Pwscf(prefix= self.prefix, grid= grid,
                             atoms= self.atoms, pseudo= pseudo)
         self.ph     = qe.Phonon(prefix= self.prefix, vector = ' 0.0 0.0 0.0')
+        self.dynmat = qe.Dynmat(prefix= self.prefix)
 
-        for obj in [self.mpi, self.pw, self.ph]:
+        for obj in [self.mpi, self.pw, self.ph, self.dynmat]:
             obj.load(database= self.database.path)
 
-        self.programs =  [self.pw, self.ph]
+        self.programs =  [self.pw, self.ph, self.dynmat]
 
     def _output(self):
 
         dyndir= self.directory.calc
-        filename= self.ph.parameters.get('fildyn')
+        filename= self.dynmat.parameters.get('filout')
 
         current_dir = os.getcwd() 
 
@@ -360,14 +363,7 @@ class PhononGamma(AttrDisplay, ICalculation):
         result = []
         flag_add = False
         for line in content:
-            if line.find("******")> -1 and flag_add:
-                flag_add = False
-
-            if flag_add == True:
-                result.append(line)
-
-            if line.find("******")> -1  and not flag_add:
-                flag_add = True
+            result.append(line)
 
         os.chdir(path= self.directory.output)
 

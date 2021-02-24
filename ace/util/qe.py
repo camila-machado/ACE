@@ -1,4 +1,5 @@
 # Copyright 2020, Camila Machado de Araújo
+# Copyright 2021, Lucas Henrique Francisco 
 # (see accompanying license files for details).
 
 """
@@ -318,7 +319,23 @@ class Lambda (IQuantumEspresso):
                         dyndir= self.dyndir,
                         sigma_omega= self.parameters.get('sigma_omega'), 
                         mu= self.parameters.get('mu'), 
-                        fildyn= self.parameters.get('fildyn'))    
+                        fildyn= self.parameters.get('fildyn'))
+
+class Dynmat (IQuantumEspresso):
+
+    program = 'dynmat.x'
+    db_dict = 'dynmat_par'
+    variables = ['fildyn', 'asr', 'filout', 'fileig']
+
+    def setparameters(self, prefix, name = None):
+        IQuantumEspresso.setparameters(self, prefix= prefix, name = name)
+        self.parameters.update({'fildyn': prefix+'.dyn'})
+        self.parameters.update({'filout': prefix+'.dynmat'})
+        self.parameters.update({'fileig': prefix+'.eig'})
+
+    def _command(self, mpi):
+        command = self.program +' < '+ self.input
+        return command
 
 ################################################################################
 ##----------------------------------------------------------------------------##

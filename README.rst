@@ -67,7 +67,7 @@ After including the ACE directories to your system PATH and setting ace.py as an
 
     ace.py <routine> <input_file> <op_mode> <input_var>
     
-With the up to three parameters are:
+Up to three inputs (described bellow) are supplied after calling ace.py. Their order does not matter.
 
 - <routine> (optional)
     The calculation you want to perform. Currently available values are:
@@ -116,6 +116,14 @@ If a user wants to repeat this calculation with, for example, a denser K-mesh, t
 
     ace.py ph Si.cif Si.PH.in
 
+Pseudopotentials
+----------------
+
+This package accompanies PAW and Ultrasoft non-relativistic pseudopotentials with exchange-correlation functionals of type GGA (ace/pseudo directory). By default, ultrasoft pseudopotentials are used.
+
+All the included pseudopotentials are from PSlibrary (DOI: 10.1016/j.commatsci.2014.07.043, WEB: http://www.quantum-espresso.org/pseudopotentials, LICENSE: GNU General Public License (version 2 or later))
+
+Please cite the pseudopotentials used and give proper credit to their authors. More infomration on the PSlibrary library, including citation information, may be found at: https://dalcorso.github.io/pslibrary/
 
 Testing
 -------
@@ -124,7 +132,7 @@ Testing
 Contact
 -------
 
-* Mailing: camila.araujo@lnls.br
+* Mailing: camila.araujo@ee.ufcg.edu.br ; lucas.francisco@lnls.br
 
 Please send us bug-reports, patches, code, ideas and questions.
 
