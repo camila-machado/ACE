@@ -65,7 +65,7 @@ After including the ACE directories to your system PATH and setting ace.py as an
 
 .. code-block::
 
-    ace.py <routine> <input_file> <op_mode> <input_var>
+    ace.py <routine> <op_mode> <input_file> <input_var>
     
 Up to three inputs (described bellow) are supplied after calling ace.py. Their order does not matter.
 
