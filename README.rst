@@ -1,7 +1,7 @@
 Automated Crystal-based Electronic Structure Calculator
 =======================================================
 
-ACE is a set of tools and Python modules for calculating materials 
+ACE is is a set of tools and Python modules for calculating materials 
 propeties with minimun input information, only a cristalographic
 information file is needed. It is an interface to the Quantum ESPRESSO suite
 for electronic structures calculations and uses the ase library for atomistic
