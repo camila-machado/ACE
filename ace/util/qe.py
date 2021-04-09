@@ -303,7 +303,7 @@ class Lambda (IQuantumEspresso):
 
     program = 'lambda.x'
     db_dict = 'lambda_par'
-    variables = ['zasr', 'fildyn', 'flfrc', 'la2F']
+    variables = ['sigma_omega', 'fildyn', 'mu']
 
     def setparameters(self, prefix, name= None, dyndir= ''):
         IQuantumEspresso.setparameters(self, prefix= prefix, name = name)
