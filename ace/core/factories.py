@@ -79,8 +79,8 @@ def _dbnew(filvar, db_name, keys):
     for i in range(len(sections)):
         db.dcreate(sections[i])
         for key in keys[i]:
-            value = parameters[i].get(key, False)
-            if value:
+            value = parameters[i].get(key, None)
+            if value != None:
                 db.dadd(sections[i], (key, value))
     
     dir_database = os.path.join(os.getcwd(), db_name)
