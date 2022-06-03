@@ -43,7 +43,6 @@ class TcDatabase (IMakeDatabase):
         db.dcreate ('mpi')
 
         db.dadd('mpi',('np',4) )
-        db.dadd('mpi',('nk',4) )
 
         #grids - points distance used to calculate grids for scf and phonons calculations
         db.dcreate ('grid')
@@ -119,7 +118,6 @@ class EosDatabase (IMakeDatabase):
         db.dcreate ('mpi')
 
         db.dadd('mpi',('np',4) )
-        db.dadd('mpi',('nk',4) )
 
         #grids - points distance used to calculate grids for scf and phonons calculations
         db.dcreate ('grid')
@@ -169,7 +167,6 @@ class PhononDatabase (IMakeDatabase):
         db.dcreate ('mpi')
 
         db.dadd('mpi',('np',4) )
-        db.dadd('mpi',('nk',4) )
 
         #grids - points distance used to calculate grids for scf and phonons calculations
         db.dcreate ('grid')

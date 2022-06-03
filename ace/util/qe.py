@@ -90,19 +90,16 @@ class Mpi(AttrDisplay):
     """
     db_dict = 'mpi'
 
-    def __init__(self, np = 1, nk = 1): 
+    def __init__(self, np = 1): 
         self.np = str(np)
-        self.nk = str(nk)
 
     def load(self, database):
         db = pk.load(database, False)
         self.np = str(db.dget(self.db_dict,'np'))  
-        self.nk = str(db.dget(self.db_dict,'nk'))
     
     def dump(self, database):
         db = pk.load(database, False)
         db.dadd(self.db_dict,('np', self.np) )
-        db.dadd(self.db_dict,('nk', self.nk) )
         db.dump()        
 
 class IQuantumEspresso(AttrDisplay):
@@ -136,8 +133,12 @@ class IQuantumEspresso(AttrDisplay):
         self.output = os.path.join(dir.output, self.output)
         self.calc = dir.calc
 
+    '''
+    mpiexec command can be found at: https://www.mpich.org/static/docs/v3.1/www1/mpiexec.html
+    '''
+
     def _command(self, mpi):
-        command = 'mpiexec'+' -np '+mpi.np+' '+self.program+' -nk '+ mpi.nk+' -in '+self.input
+        command = 'mpiexec'+' -np '+mpi.np+' '+self.program+' -in '+self.input
         return command
     
     def load(self, database):
@@ -392,7 +393,7 @@ if __name__ == '__main__':
 
     print('\nTEST 1: criate mpi obj and dump at database\n')
  
-    mpi = Mpi(nk= 3,np= 3)
+    mpi = Mpi(np= 3)
     print(mpi)
     mpi.dump(database= database)
 

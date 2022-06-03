@@ -176,7 +176,7 @@ class ICalculation():
     db_strategy = database.IMakeDatabase()
     db_dict = 'calc_stage'
     calc_stage = None
-    variables = [['routine'], ['pseudo_folder'], ['np', 'nk']]
+    variables = [['routine'], ['pseudo_folder'], ['np']]
     grid_variable = None
     programs = None
     sufix = None

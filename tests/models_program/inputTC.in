@@ -6,7 +6,6 @@
 /
 &MPI
    np               = 4
-   nk               = 4
 /
 &GRID
    coarse_div       = (9, 9, 9)
