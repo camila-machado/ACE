@@ -37,6 +37,7 @@ def main():
 
     cell = filcell.read()
     prefix = filcell.name
+    print(prefix)
     
     routine = fct.calcfactory(clmode= clmode, cell= cell, prefix= prefix)
 

@@ -7,6 +7,7 @@
 This module provide class interfaces for quantum espresso programs
 """
 import os
+import platform
 import subprocess
 import sys
 
@@ -92,14 +93,19 @@ class Mpi(AttrDisplay):
 
     def __init__(self, np = 1): 
         self.np = str(np)
+        self.host = platform.node()
 
     def load(self, database):
         db = pk.load(database, False)
         self.np = str(db.dget(self.db_dict,'np'))  
-    
+        self.host = self.host = platform.node()  
+        #doens't read host from database, becouse you may use the same db
+        #to make a calculation in another pc
+
     def dump(self, database):
         db = pk.load(database, False)
         db.dadd(self.db_dict,('np', self.np) )
+        db.dadd(self.db_dict,('host', self.host) )
         db.dump()        
 
 class IQuantumEspresso(AttrDisplay):
@@ -138,7 +144,8 @@ class IQuantumEspresso(AttrDisplay):
     '''
 
     def _command(self, mpi):
-        command = 'mpiexec'+' -np '+mpi.np+' '+self.program+' -in '+self.input
+#        command = 'mpiexec'+' -np '+mpi.np+' '+self.program+' -in '+self.input
+        command = 'mpiexec'+' -host '+mpi.host+':N' +' '+self.program+' -in '+self.input
         return command
     
     def load(self, database):
