@@ -144,8 +144,8 @@ class IQuantumEspresso(AttrDisplay):
     '''
 
     def _command(self, mpi):
-#        command = 'mpiexec'+' -np '+mpi.np+' '+self.program+' -in '+self.input
-        command = 'mpiexec'+' -host '+mpi.host+':N' +' '+self.program+' -in '+self.input
+        command = 'mpiexec'+' -np '+mpi.np+' '+self.program+' -in '+self.input
+#        command = 'mpiexec'+' -host '+mpi.host+':N' +' '+self.program+' -in '+self.input
         return command
     
     def load(self, database):

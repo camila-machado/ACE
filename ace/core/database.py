@@ -42,7 +42,7 @@ class TcDatabase (IMakeDatabase):
         #mpi - parallen running description
         db.dcreate ('mpi')
 
-        db.dadd('mpi',('np',1) )
+        db.dadd('mpi',('np',4))
 
         #grids - points distance used to calculate grids for scf and phonons calculations
         db.dcreate ('grid')
@@ -117,7 +117,7 @@ class EosDatabase (IMakeDatabase):
         #mpi - parallen running description
         db.dcreate ('mpi')
 
-        db.dadd('mpi',('np',1) )
+        db.dadd('mpi',('np',4))
 
         #grids - points distance used to calculate grids for scf and phonons calculations
         db.dcreate ('grid')
@@ -166,7 +166,7 @@ class PhononDatabase (IMakeDatabase):
         #mpi - parallen running description
         db.dcreate ('mpi')
 
-        db.dadd('mpi',('np',1) )
+        db.dadd('mpi',('np',4))
 
         #grids - points distance used to calculate grids for scf and phonons calculations
         db.dcreate ('grid')
