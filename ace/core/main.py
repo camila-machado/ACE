@@ -46,8 +46,8 @@ def main():
                                        filcell= filcell, clmode= clmode)
                         
     os.chdir(routine.directory.work)
-    
-    cell.copy()
+
+    filcell.copy()
 
     routine.database = fct.dbfactory(opmode= opmode, prefix= prefix, 
                                      filvar= filvar, calc= routine)

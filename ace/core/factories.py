@@ -59,11 +59,12 @@ def _dbfind(db_name):
     dir_work = os.getcwd()
     dir_database = os.path.join(dir_work, db_name)
 
-    if os.path.exists(db_dir):
+    if os.path.exists(dir_database):
         database = File(filename= dir_database, 
                         fileformat= 'db',
                         read_strategy= io.ReadDatabase())
     else:
+        print(dir_database)
         raise AssertionError('No database file found')
 
     return database
@@ -97,7 +98,7 @@ def dirfactory(opmode, prefix, filcell, clmode):
     dir_name = prefix + '_' + clmode.upper()
 
     if opmode == 'c':
-        directory = _dircopy(filcell= infile)
+        directory = _dircopy(filcell= filcell)
 
     elif opmode == 'n': 
         directory = _dirnew(name = dir_name)
