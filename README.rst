@@ -18,7 +18,7 @@ Python libraries:
 * NumPy_ (base N-dimensional array package)
 * SciPy_ (library for scientific computing)
 * Ase_ (library for atomistic simulations)
-* pickleDB_ (library for key-value storing on JASON files)
+* pickleDB_ (library for key-value storing on JSON files)
 
 Installation
 ------------
