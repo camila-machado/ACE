@@ -10,7 +10,7 @@ manipulations. This is a project of the Brazilian Synchrotron Light Laboratory (
 Requirements
 ------------
 
-* Quantum-ESPRESSO_ 6.5 or later
+* Quantum-ESPRESSO_ 6.5
 * Python_ 3.6 or later
 
 Python libraries:
